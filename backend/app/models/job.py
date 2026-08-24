@@ -12,8 +12,8 @@ from app.models.mixins import SoftDeleteMixin, TimestampMixin, UUIDPrimaryKeyMix
 class JobStatus(str, enum.Enum):
     open = "open"
     on_hold = "on_hold"
-    filled = "filled"
-    cancelled = "cancelled"
+    won = "won"  # successfully closed with a hire — was "filled"
+    lost = "lost"  # requisition fell through — was "cancelled"
 
 
 class JobVisibility(str, enum.Enum):
