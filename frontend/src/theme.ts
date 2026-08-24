@@ -24,7 +24,11 @@ export function buildTheme(mode: PaletteMode) {
         main: isDark ? "#ffb199" : "#7a1f1f",
       },
       background: {
-        default: "transparent",
+        // MUI's color utilities (alpha/darken/lighten — used internally by
+        // DataGrid and others) can't parse the CSS keyword "transparent",
+        // only actual color-function formats. rgba(...) with 0 alpha is
+        // visually identical and parses fine.
+        default: "rgba(0,0,0,0)",
         paper: isDark ? "#241019" : "#ffffff",
       },
       divider: isDark ? "rgba(255,255,255,0.08)" : "rgba(60,10,20,0.08)",
