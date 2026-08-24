@@ -1,7 +1,20 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routers import admin, auth, bulk_import, candidates, freelance, health, jobs, metrics, notes, org, pipeline
+from app.api.routers import (
+    admin,
+    auth,
+    bulk_import,
+    candidates,
+    freelance,
+    health,
+    jobs,
+    metrics,
+    notes,
+    org,
+    pipeline,
+    public_board,
+)
 from app.core.config import settings
 
 app = FastAPI(title="RecruitFast API")
@@ -31,3 +44,4 @@ app.include_router(org.router)
 app.include_router(notes.router)
 app.include_router(metrics.router)
 app.include_router(bulk_import.router)
+app.include_router(public_board.router)
