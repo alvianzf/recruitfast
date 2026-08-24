@@ -51,6 +51,4 @@ def create_job(
             )
         )
 
-    db.commit()
-    db.refresh(job)
     return job

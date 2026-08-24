@@ -30,10 +30,23 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(bearer_
 
 def get_db(current_user: CurrentUser = Depends(get_current_user)) -> Generator[Session, None, None]:
     """Tenant/role-scoped DB session — sets the Postgres session vars RLS
-    policies key off before yielding, per request. See docs/02 RLS model."""
+    policies key off before yielding, per request. See docs/02 RLS model.
+
+    One transaction for the whole request, committed here at teardown —
+    not by route handlers. `SET LOCAL` (used by set_rls_context) is
+    transaction-scoped: a mid-request `db.commit()` in a route would end
+    that transaction and silently reset app.tenant_id, breaking RLS on
+    any query the route makes afterward (e.g. a post-commit refresh).
+    Routes should `db.flush()` when they need generated IDs and leave
+    committing to this dependency.
+    """
     db = SessionLocal()
     try:
         set_rls_context(db, tenant_id=current_user.tenant_id, role=current_user.role)
         yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()

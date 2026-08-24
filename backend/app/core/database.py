@@ -18,9 +18,13 @@ def set_rls_context(session: Session, *, tenant_id: str | None, role: str) -> No
     tenant_id is None for the superadmin role, whose DB policies grant no
     access to recruiter-content tables regardless of this value.
     """
-    session.execute(text("SET LOCAL app.role = :role"), {"role": role})
+    # `SET LOCAL` is a utility statement and does not accept bind
+    # parameters ("SET LOCAL app.role = :role" is a syntax error at the
+    # driver level) — set_config() is the parameterized equivalent,
+    # with is_local=true matching SET LOCAL's transaction scope.
+    session.execute(text("SELECT set_config('app.role', :role, true)"), {"role": role})
     session.execute(
-        text("SET LOCAL app.tenant_id = :tenant_id"),
+        text("SELECT set_config('app.tenant_id', :tenant_id, true)"),
         {"tenant_id": tenant_id or ""},
     )
 
