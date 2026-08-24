@@ -28,6 +28,19 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(bearer_
     return CurrentUser(user_id=claims["sub"], tenant_id=claims.get("tenant_id"), role=claims["role"])
 
 
+def require_role(*roles: str):
+    """Dependency factory — 403s unless current_user.role is one of `roles`.
+    Use for endpoints scoped to a single role (e.g. superadmin-only admin
+    routes) beyond what RLS already enforces at the data layer."""
+
+    def _check(current_user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
+        if current_user.role not in roles:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Not authorized for this action")
+        return current_user
+
+    return _check
+
+
 def get_db(current_user: CurrentUser = Depends(get_current_user)) -> Generator[Session, None, None]:
     """Tenant/role-scoped DB session — sets the Postgres session vars RLS
     policies key off before yielding, per request. See docs/02 RLS model.
