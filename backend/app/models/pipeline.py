@@ -44,6 +44,9 @@ class JobStage(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __tablename__ = "job_stages"
 
+    # Denormalized from jobs.tenant_id so RLS can filter this table
+    # directly (see docs/02 RLS model) without a join-based policy.
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False)
     job_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("jobs.id"), nullable=False)
     name: Mapped[str] = mapped_column(String, nullable=False)
     position: Mapped[int] = mapped_column(Integer, nullable=False)

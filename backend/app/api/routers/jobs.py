@@ -42,6 +42,7 @@ def create_job(
     for position, name in enumerate(DEFAULT_STAGE_NAMES):
         db.add(
             JobStage(
+                tenant_id=job.tenant_id,
                 job_id=job.id,
                 name=name,
                 position=position,

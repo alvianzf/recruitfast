@@ -26,6 +26,9 @@ class PipelinePlacement(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "pipeline_placements"
     __table_args__ = (UniqueConstraint("candidate_id", "job_id", name="uq_placement_candidate_job"),)
 
+    # Denormalized from jobs.tenant_id so RLS can filter this table
+    # directly (see docs/02 RLS model) without a join-based policy.
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False)
     candidate_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("candidates.id"), nullable=False)
     job_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("jobs.id"), nullable=False)
     current_stage_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("job_stages.id"), nullable=False)
@@ -42,6 +45,7 @@ class StageHistory(UUIDPrimaryKeyMixin, Base):
 
     __tablename__ = "stage_history"
 
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False)
     placement_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("pipeline_placements.id"), nullable=False
     )
