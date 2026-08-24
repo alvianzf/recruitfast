@@ -1,0 +1,69 @@
+import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+
+import { api, getAccessToken, setAccessToken } from "../api/client";
+
+interface JwtClaims {
+  sub: string;
+  tenant_id: string | null;
+  role: "superadmin" | "org_admin" | "recruiter";
+  exp: number;
+}
+
+interface AuthUser {
+  id: string;
+  tenantId: string | null;
+  role: JwtClaims["role"];
+}
+
+interface AuthContextValue {
+  user: AuthUser | null;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => void;
+}
+
+const AuthContext = createContext<AuthContextValue | null>(null);
+
+function decodeClaims(token: string): JwtClaims | null {
+  try {
+    const payload = token.split(".")[1];
+    return JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
+  } catch {
+    return null;
+  }
+}
+
+function userFromToken(token: string | null): AuthUser | null {
+  if (!token) return null;
+  const claims = decodeClaims(token);
+  if (!claims) return null;
+  if (claims.exp * 1000 < Date.now()) return null;
+  return { id: claims.sub, tenantId: claims.tenant_id, role: claims.role };
+}
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<AuthUser | null>(() => userFromToken(getAccessToken()));
+
+  const value = useMemo<AuthContextValue>(
+    () => ({
+      user,
+      async login(email, password) {
+        const { data } = await api.post("/auth/login", { email, password });
+        setAccessToken(data.access_token);
+        setUser(userFromToken(data.access_token));
+      },
+      logout() {
+        setAccessToken(null);
+        setUser(null);
+      },
+    }),
+    [user],
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export function useAuth() {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+  return ctx;
+}
