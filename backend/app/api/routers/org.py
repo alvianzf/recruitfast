@@ -6,8 +6,9 @@ from sqlalchemy.orm import Session
 from app.api.deps import CurrentUser, get_db, require_role
 from app.core.security import hash_password
 from app.models.job import Job
+from app.models.team import Team
 from app.models.user import User, UserRole, UserStatus
-from app.schemas.org import RecruiterInvite, RecruiterOut, ReassignJobsRequest
+from app.schemas.org import AssignTeamRequest, RecruiterInvite, RecruiterOut, ReassignJobsRequest
 
 router = APIRouter(prefix="/org", tags=["org"])
 
@@ -68,6 +69,34 @@ def deactivate_recruiter(
     if user is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Recruiter not found")
     user.status = UserStatus.deactivated
+    return user
+
+
+@router.patch("/recruiters/{recruiter_id}/team", response_model=RecruiterOut)
+def assign_recruiter_team(
+    recruiter_id: uuid.UUID,
+    payload: AssignTeamRequest,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_role("org_admin")),
+) -> User:
+    user = (
+        db.query(User)
+        .filter(User.id == recruiter_id, User.tenant_id == uuid.UUID(current_user.tenant_id))
+        .first()
+    )
+    if user is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Recruiter not found")
+
+    if payload.team_id is not None:
+        team = (
+            db.query(Team)
+            .filter(Team.id == payload.team_id, Team.tenant_id == uuid.UUID(current_user.tenant_id))
+            .first()
+        )
+        if team is None:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="team_id is not a team in this org")
+
+    user.team_id = payload.team_id
     return user
 
 

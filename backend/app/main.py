@@ -16,6 +16,7 @@ from app.api.routers import (
     pipeline,
     public_board,
     screening,
+    teams,
 )
 from app.core.config import settings
 
@@ -49,3 +50,4 @@ app.include_router(bulk_import.router)
 app.include_router(public_board.router)
 app.include_router(screening.router)
 app.include_router(blacklist.router)
+app.include_router(teams.router)

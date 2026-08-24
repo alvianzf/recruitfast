@@ -11,6 +11,7 @@ class RecruiterOut(BaseModel):
     email: str
     role: str
     status: str
+    team_id: uuid.UUID | None
 
 
 class RecruiterInvite(BaseModel):
@@ -21,3 +22,7 @@ class RecruiterInvite(BaseModel):
 
 class ReassignJobsRequest(BaseModel):
     to_recruiter_id: uuid.UUID
+
+
+class AssignTeamRequest(BaseModel):
+    team_id: uuid.UUID | None
