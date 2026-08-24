@@ -21,6 +21,8 @@ import HowToRegOutlinedIcon from "@mui/icons-material/HowToRegOutlined";
 import HowToRegIcon from "@mui/icons-material/HowToReg";
 import BadgeOutlinedIcon from "@mui/icons-material/BadgeOutlined";
 import BadgeIcon from "@mui/icons-material/Badge";
+import PublicOutlinedIcon from "@mui/icons-material/PublicOutlined";
+import PublicIcon from "@mui/icons-material/Public";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { Link as RouterLink, useLocation } from "react-router-dom";
 
@@ -31,6 +33,7 @@ const RECRUITER_NAV_ITEMS = [
   { label: "Dashboard", path: "/", icon: DashboardOutlinedIcon, activeIcon: DashboardIcon },
   { label: "Jobs", path: "/jobs", icon: WorkOutlinedIcon, activeIcon: WorkIcon },
   { label: "Candidates", path: "/candidates", icon: PeopleOutlinedIcon, activeIcon: PeopleIcon },
+  { label: "Open Profiles", path: "/open-profiles", icon: PublicOutlinedIcon, activeIcon: PublicIcon },
 ];
 
 const ORG_ADMIN_NAV_ITEMS = [

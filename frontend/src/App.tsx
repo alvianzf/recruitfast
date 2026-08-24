@@ -14,6 +14,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import CareersBoard from "./pages/public/CareersBoard";
 import ApplyPage from "./pages/public/ApplyPage";
+import OpenProfiles from "./pages/OpenProfiles";
 
 export default function App() {
   return (
@@ -82,6 +83,16 @@ export default function App() {
                 <AdminFreelanceQueue />
               </AppShell>
             </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/open-profiles"
+        element={
+          <ProtectedRoute>
+            <AppShell>
+              <OpenProfiles />
+            </AppShell>
           </ProtectedRoute>
         }
       />
