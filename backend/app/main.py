@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routers import auth, health, jobs
+from app.api.routers import auth, freelance, health, jobs
 from app.core.config import settings
 
 app = FastAPI(title="RecruitFast API")
@@ -16,4 +16,5 @@ app.add_middleware(
 
 app.include_router(health.router)
 app.include_router(auth.router)
+app.include_router(freelance.router)
 app.include_router(jobs.router)
