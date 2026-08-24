@@ -1,31 +1,37 @@
-import { Grid, Paper, Stack, Typography } from "@mui/material";
+import { Grid, Stack, Typography } from "@mui/material";
+import WorkOutlinedIcon from "@mui/icons-material/WorkOutlined";
+import ScheduleIcon from "@mui/icons-material/Schedule";
+import TrendingUpIcon from "@mui/icons-material/TrendingUp";
+import PersonOffOutlinedIcon from "@mui/icons-material/PersonOffOutlined";
 
-// Placeholder metric tiles — real charts (MUI X Charts) land once the
-// backend exposes aggregated metrics endpoints. See
-// docs/05-dashboards-metrics.md for the full per-role chart spec.
-const PLACEHOLDER_TILES = [
-  "Open jobs assigned to me",
-  "Time-to-fill per active job",
-  "Stage-conversion funnel",
-  "Stale candidates",
-];
+import { useJobs } from "../api/jobs";
+import StatTile from "../components/StatTile";
 
+// Real counts land once metrics endpoints exist (docs/05); "Open jobs" is
+// wired to live data now since /jobs already exists, the rest are
+// placeholder pending backend aggregation.
 export default function Dashboard() {
+  const { data: jobs } = useJobs();
+  const openJobs = jobs?.filter((j) => j.status === "open").length ?? 0;
+
   return (
     <Stack spacing={3}>
-      <Typography variant="h5" sx={{ fontWeight: 600 }}>
+      <Typography variant="h5" sx={{ fontWeight: 700 }}>
         Dashboard
       </Typography>
       <Grid container spacing={2}>
-        {PLACEHOLDER_TILES.map((title) => (
-          <Grid key={title} size={{ xs: 12, sm: 6, md: 3 }}>
-            <Paper sx={{ p: 3, height: 140 }}>
-              <Typography variant="body2" color="text.secondary">
-                {title}
-              </Typography>
-            </Paper>
-          </Grid>
-        ))}
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <StatTile label="Open jobs" value={openJobs} icon={<WorkOutlinedIcon fontSize="small" />} />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <StatTile label="Avg. time-to-fill" value="—" icon={<ScheduleIcon fontSize="small" />} />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <StatTile label="Offers this month" value="—" icon={<TrendingUpIcon fontSize="small" />} />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <StatTile label="Stale candidates" value="—" icon={<PersonOffOutlinedIcon fontSize="small" />} />
+        </Grid>
       </Grid>
     </Stack>
   );

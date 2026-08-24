@@ -7,15 +7,16 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Typography,
 } from "@mui/material";
+import PeopleOutlinedIcon from "@mui/icons-material/PeopleOutlined";
+
+import PageHeader from "../components/PageHeader";
+import EmptyState from "../components/EmptyState";
 
 export default function Candidates() {
   return (
     <Stack spacing={3}>
-      <Typography variant="h5" sx={{ fontWeight: 600 }}>
-        Candidates
-      </Typography>
+      <PageHeader title="Candidates" />
       <TableContainer component={Paper} sx={{ backdropFilter: "none" }}>
         <Table>
           <TableHead>
@@ -29,9 +30,11 @@ export default function Candidates() {
           <TableBody>
             <TableRow>
               <TableCell colSpan={4}>
-                <Typography color="text.secondary" sx={{ textAlign: "center", py: 4 }}>
-                  No candidates yet.
-                </Typography>
+                <EmptyState
+                  icon={<PeopleOutlinedIcon />}
+                  title="No candidates yet"
+                  description="Candidates you source or that apply to your jobs will show up here."
+                />
               </TableCell>
             </TableRow>
           </TableBody>
