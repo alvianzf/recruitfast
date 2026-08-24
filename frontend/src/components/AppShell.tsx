@@ -17,16 +17,26 @@ import WorkOutlinedIcon from "@mui/icons-material/WorkOutlined";
 import WorkIcon from "@mui/icons-material/Work";
 import PeopleOutlinedIcon from "@mui/icons-material/PeopleOutlined";
 import PeopleIcon from "@mui/icons-material/People";
+import HowToRegOutlinedIcon from "@mui/icons-material/HowToRegOutlined";
+import HowToRegIcon from "@mui/icons-material/HowToReg";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { Link as RouterLink, useLocation } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthContext";
 import Logo from "./Logo";
 
-const NAV_ITEMS = [
+const RECRUITER_NAV_ITEMS = [
   { label: "Dashboard", path: "/", icon: DashboardOutlinedIcon, activeIcon: DashboardIcon },
   { label: "Jobs", path: "/jobs", icon: WorkOutlinedIcon, activeIcon: WorkIcon },
   { label: "Candidates", path: "/candidates", icon: PeopleOutlinedIcon, activeIcon: PeopleIcon },
+];
+
+// Superadmin has no navigation path into job/candidate content at all —
+// not hidden by convention, the screens genuinely aren't reachable from
+// here. See docs/06-ui-design-system.md#confidentiality-aware-ui-patterns.
+const SUPERADMIN_NAV_ITEMS = [
+  { label: "Dashboard", path: "/", icon: DashboardOutlinedIcon, activeIcon: DashboardIcon },
+  { label: "Freelance Queue", path: "/admin/freelance-queue", icon: HowToRegOutlinedIcon, activeIcon: HowToRegIcon },
 ];
 
 const ROLE_LABEL: Record<string, string> = {
@@ -41,6 +51,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
   const { user, logout } = useAuth();
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
+  const navItems = user?.role === "superadmin" ? SUPERADMIN_NAV_ITEMS : RECRUITER_NAV_ITEMS;
 
   return (
     <Box sx={{ display: "flex", minHeight: "100vh" }}>
@@ -60,7 +71,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </Box>
 
           <Stack spacing={0.5} sx={{ flex: 1 }}>
-            {NAV_ITEMS.map((item) => {
+            {navItems.map((item) => {
               const isActive = item.path === pathname;
               const Icon = isActive ? item.activeIcon : item.icon;
               return (
