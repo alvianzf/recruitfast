@@ -18,10 +18,8 @@ that should go the other way:
    explicitly — freelancers get a deliberately lighter-weight tool,
    Org tenants (who are paying for more structured hiring) aren't
    artificially limited.
-2. **No per-job "publish to board" toggle in this pass** — every `open`
-   status job is listed on its org's board automatically. A separate
-   publish flag is a natural refinement (some roles are sourced privately
-   without public applications) but wasn't asked for; noted as a gap.
+2. ~~No per-job "publish to board" toggle~~ — superseded, see
+   [Job visibility](#job-visibility-public-vs-unlisted) below.
 3. **"Open profile" exposes only the candidate's summary fields**
    (name, current position, years of experience) to other orgs' recruiters
    — not their parsed resume detail, notes, or other pipeline history.
@@ -71,6 +69,28 @@ presentable and memorable.
   query on a low-traffic public page.
 - A board for an unknown slug is a plain 404, not an error — indistinguishable
   from a slug that was never issued (doesn't leak which slugs are valid).
+
+## Job visibility: Public vs. Unlisted
+
+`jobs.visibility` — `public` (default) | `unlisted`:
+
+- **Public**: appears on the org's board listing, exactly as described
+  above.
+- **Unlisted**: does **not** appear in the board listing, but the direct
+  application page (`GET /public/jobs/{job_id}`, same route either way)
+  still works for anyone who has the link — applying, screening
+  questions, and the applicant counter all behave identically to a
+  public job. Unlisted is "not discoverable," not "not accessible."
+- Still requires `status = open` to accept applications either way —
+  visibility and status are independent: an unlisted job can be open or
+  closed, same as a public one.
+- **Copy link**: every job (public or unlisted) has a "Copy application
+  link" action — on the Jobs list row's ⋮ menu and on the Job Detail
+  page — that copies `{base_url}/public/jobs/{job_id}` to the clipboard.
+  This is *the* distribution mechanism for unlisted jobs (send the link
+  directly to candidates/a specific channel) and a convenience for public
+  ones (share the direct link instead of pointing someone at the whole
+  board).
 
 ## Applying to a job
 
@@ -200,6 +220,11 @@ worth being explicit about exactly how narrow it is.
   broadly; flagged here rather than silently assumed away.
 
 ## Data model additions
+
+### `jobs.visibility`
+| column | type | notes |
+|---|---|---|
+| visibility | enum(`public`, `unlisted`) default `public` | independent of `status` — an unlisted job can be open or closed |
 
 ### `tenants.slug`
 | column | type | notes |
