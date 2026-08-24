@@ -15,8 +15,8 @@ import EmptyState from "../components/EmptyState";
 const STATUS_COLOR: Record<string, "success" | "warning" | "default" | "error"> = {
   open: "success",
   on_hold: "warning",
-  filled: "default",
-  cancelled: "error",
+  won: "success",
+  lost: "error",
 };
 
 export default function Jobs() {

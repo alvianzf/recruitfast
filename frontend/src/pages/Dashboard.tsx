@@ -15,8 +15,8 @@ import { BRAND_PRIMARY } from "../theme";
 const STATUS_LABEL: Record<string, string> = {
   open: "Open",
   on_hold: "On hold",
-  filled: "Filled",
-  cancelled: "Cancelled",
+  won: "Won",
+  lost: "Lost",
 };
 
 function RecruiterDashboard() {
