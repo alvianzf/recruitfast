@@ -1,45 +1,61 @@
-import {
-  Paper,
-  Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-} from "@mui/material";
-import PeopleOutlinedIcon from "@mui/icons-material/PeopleOutlined";
+import { useState } from "react";
+import { Paper, Stack } from "@mui/material";
+import { DataGrid, GridToolbar, type GridColDef } from "@mui/x-data-grid";
+import UploadFileOutlinedIcon from "@mui/icons-material/UploadFileOutlined";
 
+import { useCandidates, type Candidate } from "../api/candidates";
 import PageHeader from "../components/PageHeader";
 import EmptyState from "../components/EmptyState";
+import CvUploadModal from "../components/CvUploadModal";
+
+const columns: GridColDef<Candidate>[] = [
+  { field: "full_name", headerName: "Name", flex: 1.2, minWidth: 160 },
+  { field: "current_position", headerName: "Position", flex: 1, minWidth: 160 },
+  { field: "email", headerName: "Email", flex: 1, minWidth: 180 },
+  { field: "phone", headerName: "Phone", flex: 0.8, minWidth: 140 },
+  { field: "total_years_experience", headerName: "Years exp.", width: 110 },
+  { field: "source", headerName: "Source", width: 120 },
+];
 
 export default function Candidates() {
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const { data: candidates, isLoading } = useCandidates();
+
   return (
     <Stack spacing={3}>
-      <PageHeader title="Candidates" />
-      <TableContainer component={Paper} sx={{ backdropFilter: "none" }}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Name</TableCell>
-              <TableCell>Active pipelines</TableCell>
-              <TableCell>Source</TableCell>
-              <TableCell align="right">Latest CV</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            <TableRow>
-              <TableCell colSpan={4}>
-                <EmptyState
-                  icon={<PeopleOutlinedIcon />}
-                  title="No candidates yet"
-                  description="Candidates you source or that apply to your jobs will show up here."
-                />
-              </TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
-      </TableContainer>
+      <PageHeader
+        title="Candidates"
+        action={{
+          label: "Add candidates",
+          icon: <UploadFileOutlinedIcon fontSize="small" />,
+          onClick: () => setUploadOpen(true),
+        }}
+      />
+
+      <Paper sx={{ backdropFilter: "none", height: 600, p: 1 }}>
+        <DataGrid
+          rows={candidates ?? []}
+          columns={columns}
+          loading={isLoading}
+          density="comfortable"
+          pageSizeOptions={[20, 50, 100]}
+          initialState={{ pagination: { paginationModel: { pageSize: 20 } } }}
+          slots={{
+            toolbar: GridToolbar,
+            noRowsOverlay: () => (
+              <EmptyState
+                icon={<UploadFileOutlinedIcon />}
+                title="No candidates yet"
+                description="Upload CVs to add your first candidates."
+              />
+            ),
+          }}
+          slotProps={{ toolbar: { showQuickFilter: true } }}
+          sx={{ border: "none" }}
+        />
+      </Paper>
+
+      <CvUploadModal open={uploadOpen} onClose={() => setUploadOpen(false)} />
     </Stack>
   );
 }
