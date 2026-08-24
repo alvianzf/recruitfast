@@ -83,6 +83,9 @@ export function useBlacklistCandidate() {
   return useMutation({
     mutationFn: async ({ candidateId, reason }: { candidateId: string; reason: string }) =>
       (await api.post(`/candidates/${candidateId}/blacklist`, { reason })).data,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["candidates"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["candidates"] });
+      queryClient.invalidateQueries({ queryKey: ["blacklist-status"] });
+    },
   });
 }
