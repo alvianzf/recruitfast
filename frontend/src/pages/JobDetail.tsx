@@ -14,6 +14,7 @@ import PageHeader from "../components/PageHeader";
 import KanbanBoard from "../components/KanbanBoard";
 import AttachCandidateDialog from "../components/AttachCandidateDialog";
 import JobApplicationsPanel from "../components/JobApplicationsPanel";
+import JobAssignmentControl from "../components/JobAssignmentControl";
 
 // Kanban is the default view inside a single job's pipeline (docs/03) —
 // unlike the Jobs list itself, which is always Table.
@@ -93,6 +94,7 @@ export default function JobDetail() {
             <LinkIcon fontSize="small" />
           </IconButton>
         </Tooltip>
+        <JobAssignmentControl job={job} />
         <ToggleButtonGroup size="small" exclusive value={view} onChange={(_, next) => next && setView(next)}>
           <ToggleButton value="kanban">
             <ViewKanbanIcon fontSize="small" />

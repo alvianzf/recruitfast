@@ -5,8 +5,9 @@ import { useNavigate } from "react-router-dom";
 import AddIcon from "@mui/icons-material/Add";
 import WorkOutlinedIcon from "@mui/icons-material/WorkOutlined";
 import LinkIcon from "@mui/icons-material/Link";
+import PersonAddAlt1OutlinedIcon from "@mui/icons-material/PersonAddAlt1Outlined";
 
-import { useJobs, type Job } from "../api/jobs";
+import { useClaimJob, useJobs, type Job } from "../api/jobs";
 import NewJobDialog from "./NewJobDialog";
 import PageHeader from "../components/PageHeader";
 import EmptyState from "../components/EmptyState";
@@ -24,6 +25,7 @@ export default function Jobs() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const { data: jobs, isLoading } = useJobs();
   const navigate = useNavigate();
+  const claim = useClaimJob();
 
   const columns: GridColDef<Job>[] = [
     { field: "title", headerName: "Title", flex: 1.2, minWidth: 200 },
@@ -40,25 +42,50 @@ export default function Jobs() {
         />
       ),
     },
+    {
+      field: "owner_recruiter_id",
+      headerName: "Assignment",
+      width: 130,
+      renderCell: (params) =>
+        params.value === null ? (
+          <Chip size="small" label="Unassigned" color="warning" variant="outlined" />
+        ) : null,
+    },
     { field: "overview", headerName: "Overview", flex: 2, minWidth: 240 },
     {
       field: "actions",
       headerName: "",
-      width: 60,
+      width: 90,
       sortable: false,
       filterable: false,
       renderCell: (params) => (
-        <Tooltip title="Copy application link">
-          <IconButton
-            size="small"
-            onClick={(e) => {
-              e.stopPropagation();
-              navigator.clipboard.writeText(`${window.location.origin}/apply/${params.row.id}`);
-            }}
-          >
-            <LinkIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
+        <Stack direction="row">
+          {params.row.owner_recruiter_id === null && (
+            <Tooltip title="Claim this job">
+              <IconButton
+                size="small"
+                disabled={claim.isPending}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  claim.mutate(params.row.id);
+                }}
+              >
+                <PersonAddAlt1OutlinedIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
+          <Tooltip title="Copy application link">
+            <IconButton
+              size="small"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigator.clipboard.writeText(`${window.location.origin}/apply/${params.row.id}`);
+              }}
+            >
+              <LinkIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Stack>
       ),
     },
   ];
