@@ -278,6 +278,14 @@ not be able to bypass it).
   (`invalid input syntax for type uuid: ""`) instead of safely matching
   zero rows. `NULLIF(..., '')` before the cast fixes it for both NULL and
   `''`. Don't reintroduce a bare cast in a future policy.
+- `email_blacklist_entries` (`0010_email_blacklist_registry.py`) is
+  deliberately **not** RLS-protected at all, for the same reason `users`
+  isn't (see `app/api/routers/org.py`): it's a platform-wide registry, not
+  per-tenant recruiter content, and the whole point is that any
+  authenticated recruiter can look up any email regardless of which
+  tenant filed the entry. The API only ever returns `reason` +
+  `created_at`; the filing `tenant_id` column exists for audit only and
+  is never serialized. See [01-roles-permissions.md](01-roles-permissions.md).
 - `assisted_access_requests`, once `approved` and unexpired, will grant a
   narrowly-scoped, time-limited additional policy for that one
   `resource_id` — **not yet implemented**; today Assisted Access has a

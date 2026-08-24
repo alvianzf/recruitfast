@@ -70,9 +70,15 @@ standing "login as user" impersonation path.
 - Add candidates to any number of job pipelines.
 - Mark a note **private-to-me** (hidden from Org Admin and other
   recruiters) or **team-visible** (default).
-- Mark a candidate **blacklisted (org-wide)** — a distinct, explicit action
-  requiring a reason, separate from rejecting them in a single job's
-  pipeline (see [03-pipelines-and-boards.md](03-pipelines-and-boards.md)).
+- Mark a candidate **blacklisted** — a distinct, explicit action requiring
+  a reason, separate from rejecting them in a single job's pipeline (see
+  [03-pipelines-and-boards.md](03-pipelines-and-boards.md)). This also
+  files the candidate's email in a platform-wide blacklist registry: if
+  the same email later applies to a role at a *different* tenant, that
+  recruiter sees a flag with the reason and date (but not who filed it or
+  which org). This is a third narrow, deliberate cross-tenant exception,
+  alongside open profiles and the public job board — see
+  [02-data-model.md](02-data-model.md).
 
 **Cannot:**
 - See another recruiter's private notes.
