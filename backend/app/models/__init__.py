@@ -4,7 +4,9 @@ from app.models.billing import Invoice, Plan, Subscription
 from app.models.candidate import Candidate, CandidateDocument
 from app.models.document import Document
 from app.models.freelance import FreelanceApplication
+from app.models.import_batch import CandidateImportBatch
 from app.models.job import Job
+from app.models.job_application import JobApplication, JobScreeningQuestion
 from app.models.note import Note
 from app.models.pipeline import JobStage, PipelineTemplate, PipelineTemplateStage
 from app.models.placement import PipelinePlacement, StageHistory
@@ -20,9 +22,12 @@ __all__ = [
     "Subscription",
     "Candidate",
     "CandidateDocument",
+    "CandidateImportBatch",
     "Document",
     "FreelanceApplication",
     "Job",
+    "JobApplication",
+    "JobScreeningQuestion",
     "Note",
     "JobStage",
     "PipelineTemplate",

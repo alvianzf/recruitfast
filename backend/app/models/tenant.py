@@ -24,6 +24,9 @@ class Tenant(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     type: Mapped[TenantType] = mapped_column(Enum(TenantType, name="tenant_type"), nullable=False)
     name: Mapped[str] = mapped_column(String, nullable=False)
+    # Public job board identifier — {base_url}/jobs/{slug}. Null for the
+    # Freelance Org (fixed /jobs/public route instead). See docs/10.
+    slug: Mapped[str | None] = mapped_column(String, unique=True, nullable=True)
     status: Mapped[TenantStatus] = mapped_column(
         Enum(TenantStatus, name="tenant_status"), nullable=False, default=TenantStatus.active
     )

@@ -1,7 +1,7 @@
 import enum
 import uuid
 
-from sqlalchemy import Enum, ForeignKey, String, Text
+from sqlalchemy import Boolean, Enum, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -14,6 +14,11 @@ class JobStatus(str, enum.Enum):
     on_hold = "on_hold"
     filled = "filled"
     cancelled = "cancelled"
+
+
+class JobVisibility(str, enum.Enum):
+    public = "public"
+    unlisted = "unlisted"
 
 
 class Job(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
@@ -31,6 +36,12 @@ class Job(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
     )
     custom_fields: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     status: Mapped[JobStatus] = mapped_column(Enum(JobStatus, name="job_status"), nullable=False, default=JobStatus.open)
+    # Public board listing vs. link-only — see docs/10-job-board-and-applications.md.
+    visibility: Mapped[JobVisibility] = mapped_column(
+        Enum(JobVisibility, name="job_visibility"), nullable=False, default=JobVisibility.public
+    )
+    # Gates whether the GitHub URL default application question is shown.
+    is_technical_role: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     pipeline_template_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("pipeline_templates.id"), nullable=True
     )

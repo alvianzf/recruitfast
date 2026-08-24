@@ -19,9 +19,15 @@ class Candidate(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
     source: Mapped[str | None] = mapped_column(String, nullable=True)
     current_position: Mapped[str | None] = mapped_column(String, nullable=True)
     total_years_experience: Mapped[str | None] = mapped_column(String, nullable=True)
+    linkedin_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    github_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    portfolio_url: Mapped[str | None] = mapped_column(String, nullable=True)
     blacklisted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     blacklist_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     dedup_fingerprint: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    # Candidate-set at public application time — the sole gate for the
+    # cross-tenant RLS exception on this table. See docs/10 "Open profiles".
+    open_to_other_roles: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
 
 class ParseStatus(str, enum.Enum):
