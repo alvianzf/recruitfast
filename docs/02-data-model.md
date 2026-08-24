@@ -1,7 +1,8 @@
 # Data Model (PostgreSQL)
 
-Local dev: database `recruitfast`, user `postgres`, password `REDACTED`.
-Types below are simplified for readability — see the actual Alembic
+Local dev: database `recruitfast`. Credentials are set via `DATABASE_URL`
+in a local, gitignored `.env` (see `backend/.env.example`) — never
+committed to source. Types below are simplified for readability — see the actual Alembic
 migrations once implementation starts for exact constraints/indexes.
 
 ## Conventions

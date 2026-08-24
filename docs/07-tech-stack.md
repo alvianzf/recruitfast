@@ -47,9 +47,10 @@
 
 ## Database
 
-- **PostgreSQL** (local dev: db `recruitfast`, user `postgres`, password
-  `REDACTED`, connection string
-  `postgresql://postgres:REDACTED@localhost:5432/recruitfast`).
+- **PostgreSQL** (local dev: db `recruitfast`). Connection string is set
+  via `DATABASE_URL` in a local, gitignored `.env` — see
+  `backend/.env.example` for the shape. Never hardcode credentials in
+  source or docs.
 - **Row-Level Security** as the tenant-isolation and confidentiality
   enforcement layer — see
   [02-data-model.md](02-data-model.md#row-level-security-rls-model).

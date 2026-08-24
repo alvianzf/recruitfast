@@ -91,8 +91,8 @@ Rationale for every P1/P2 item and the flows they close: see
   in-process without a cross-service hop.
 - **Frontend:** React + MUI, styled to **Material Design 3**, glassmorphism
   surfaces, brand primary `#990000`.
-- **Database:** PostgreSQL (local dev: db `recruitfast`, user `postgres`,
-  password `REDACTED`).
+- **Database:** PostgreSQL (local dev: db `recruitfast`; credentials via
+  `.env`, never committed — see [07-tech-stack.md](07-tech-stack.md)).
 - **Drag-and-drop:** `dnd-kit` (actively maintained; `react-beautiful-dnd`
   is deprecated).
 
