@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Chip, CircularProgress, Paper, Stack, ToggleButton, ToggleButtonGroup } from "@mui/material";
+import { Chip, CircularProgress, IconButton, Paper, Stack, Tooltip, ToggleButton, ToggleButtonGroup } from "@mui/material";
 import { DataGrid, GridToolbar, type GridColDef } from "@mui/x-data-grid";
 import PersonAddAlt1OutlinedIcon from "@mui/icons-material/PersonAddAlt1Outlined";
 import ViewKanbanIcon from "@mui/icons-material/ViewKanban";
 import ViewListIcon from "@mui/icons-material/ViewList";
+import LinkIcon from "@mui/icons-material/Link";
 
 import { useJob } from "../api/jobs";
 import { useJobStages, usePlacements, useMovePlacement, useUpdatePlacementStatus, type Placement } from "../api/pipeline";
@@ -12,6 +13,7 @@ import Breadcrumbs from "../components/Breadcrumbs";
 import PageHeader from "../components/PageHeader";
 import KanbanBoard from "../components/KanbanBoard";
 import AttachCandidateDialog from "../components/AttachCandidateDialog";
+import JobApplicationsPanel from "../components/JobApplicationsPanel";
 
 // Kanban is the default view inside a single job's pipeline (docs/03) —
 // unlike the Jobs list itself, which is always Table.
@@ -83,6 +85,14 @@ export default function JobDetail() {
           onClick: () => setAttachOpen(true),
         }}
       >
+        <Tooltip title="Copy application link">
+          <IconButton
+            size="small"
+            onClick={() => navigator.clipboard.writeText(`${window.location.origin}/apply/${jobId}`)}
+          >
+            <LinkIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
         <ToggleButtonGroup size="small" exclusive value={view} onChange={(_, next) => next && setView(next)}>
           <ToggleButton value="kanban">
             <ViewKanbanIcon fontSize="small" />
@@ -122,6 +132,8 @@ export default function JobDetail() {
           />
         </Paper>
       )}
+
+      <JobApplicationsPanel jobId={jobId} />
 
       <AttachCandidateDialog jobId={jobId} open={attachOpen} onClose={() => setAttachOpen(false)} />
     </Stack>

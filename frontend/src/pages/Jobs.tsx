@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Chip, Paper, Stack } from "@mui/material";
+import { Chip, IconButton, Paper, Stack, Tooltip } from "@mui/material";
 import { DataGrid, GridToolbar, type GridColDef } from "@mui/x-data-grid";
 import { useNavigate } from "react-router-dom";
 import AddIcon from "@mui/icons-material/Add";
 import WorkOutlinedIcon from "@mui/icons-material/WorkOutlined";
+import LinkIcon from "@mui/icons-material/Link";
 
 import { useJobs, type Job } from "../api/jobs";
 import NewJobDialog from "./NewJobDialog";
@@ -40,6 +41,26 @@ export default function Jobs() {
       ),
     },
     { field: "overview", headerName: "Overview", flex: 2, minWidth: 240 },
+    {
+      field: "actions",
+      headerName: "",
+      width: 60,
+      sortable: false,
+      filterable: false,
+      renderCell: (params) => (
+        <Tooltip title="Copy application link">
+          <IconButton
+            size="small"
+            onClick={(e) => {
+              e.stopPropagation();
+              navigator.clipboard.writeText(`${window.location.origin}/apply/${params.row.id}`);
+            }}
+          >
+            <LinkIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      ),
+    },
   ];
 
   return (
