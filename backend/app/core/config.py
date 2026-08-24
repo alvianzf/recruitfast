@@ -11,7 +11,10 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 30
-    cors_origins: list[str] = ["http://localhost:5173"]
+    # Browsers treat localhost and 127.0.0.1 as distinct origins even
+    # though they resolve to the same machine — both are allowed so the
+    # dev server works regardless of which host the frontend binds to.
+    cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
 
 settings = Settings()
