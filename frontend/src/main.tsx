@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router-dom";
 
 import App from "./App";
+import { AuthProvider } from "./auth/AuthContext";
 import { buildTheme } from "./theme";
 import "./index.css";
 
@@ -18,9 +19,12 @@ function Root() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
+      <div className={`app-background ${mode}`} />
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
-          <App />
+          <AuthProvider>
+            <App />
+          </AuthProvider>
         </BrowserRouter>
       </QueryClientProvider>
     </ThemeProvider>

@@ -1,6 +1,7 @@
 import { Route, Routes } from "react-router-dom";
 
 import AppShell from "./components/AppShell";
+import ProtectedRoute from "./auth/ProtectedRoute";
 import Dashboard from "./pages/Dashboard";
 import Jobs from "./pages/Jobs";
 import Candidates from "./pages/Candidates";
@@ -15,25 +16,31 @@ export default function App() {
       <Route
         path="/"
         element={
-          <AppShell>
-            <Dashboard />
-          </AppShell>
+          <ProtectedRoute>
+            <AppShell>
+              <Dashboard />
+            </AppShell>
+          </ProtectedRoute>
         }
       />
       <Route
         path="/jobs"
         element={
-          <AppShell>
-            <Jobs />
-          </AppShell>
+          <ProtectedRoute>
+            <AppShell>
+              <Jobs />
+            </AppShell>
+          </ProtectedRoute>
         }
       />
       <Route
         path="/candidates"
         element={
-          <AppShell>
-            <Candidates />
-          </AppShell>
+          <ProtectedRoute>
+            <AppShell>
+              <Candidates />
+            </AppShell>
+          </ProtectedRoute>
         }
       />
     </Routes>
