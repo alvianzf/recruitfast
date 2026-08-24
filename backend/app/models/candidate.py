@@ -17,6 +17,8 @@ class Candidate(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
     email: Mapped[str | None] = mapped_column(CITEXT, nullable=True, index=True)
     phone: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     source: Mapped[str | None] = mapped_column(String, nullable=True)
+    current_position: Mapped[str | None] = mapped_column(String, nullable=True)
+    total_years_experience: Mapped[str | None] = mapped_column(String, nullable=True)
     blacklisted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     blacklist_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     dedup_fingerprint: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
