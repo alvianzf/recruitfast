@@ -22,6 +22,8 @@ import {
   useMarkEligible,
   useScreeningQuestions,
 } from "../api/screening";
+import { useBlacklistStatuses } from "../api/blacklist";
+import BlacklistBadge from "./BlacklistBadge";
 
 function ScreeningQuestionsEditor({ jobId }: { jobId: string }) {
   const { data: questions } = useScreeningQuestions(jobId);
@@ -87,6 +89,7 @@ function ScreeningQuestionsEditor({ jobId }: { jobId: string }) {
 function NotEligibleApplicants({ jobId }: { jobId: string }) {
   const { data: applications } = useApplications(jobId, false);
   const markEligible = useMarkEligible(jobId);
+  const { data: blacklistStatuses } = useBlacklistStatuses(applications?.map((a) => a.candidate.email) ?? []);
 
   if (!applications || applications.length === 0) {
     return (
@@ -102,7 +105,14 @@ function NotEligibleApplicants({ jobId }: { jobId: string }) {
         <Paper key={app.id} variant="outlined" sx={{ p: 2, backdropFilter: "none" }}>
           <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "flex-start", gap: 2 }}>
             <Stack spacing={0.5} sx={{ minWidth: 0 }}>
-              <Typography sx={{ fontWeight: 600 }}>{app.candidate.full_name}</Typography>
+              <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+                <Typography sx={{ fontWeight: 600 }}>{app.candidate.full_name}</Typography>
+                <BlacklistBadge
+                  status={blacklistStatuses?.find(
+                    (s) => s.email.toLowerCase() === app.candidate.email?.toLowerCase(),
+                  )}
+                />
+              </Stack>
               {app.answers.map((a) => (
                 <Typography key={a.question_id} variant="caption" color="text.secondary">
                   "{a.question_text}" — answered <strong>{a.answer || "(blank)"}</strong>, expected {a.expected_answer}
