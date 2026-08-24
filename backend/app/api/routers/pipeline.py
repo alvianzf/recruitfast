@@ -21,7 +21,6 @@ from app.schemas.pipeline import (
     PlacementOut,
     PlacementStatusUpdate,
 )
-
 router = APIRouter(tags=["pipeline"])
 
 
@@ -316,3 +315,51 @@ def blacklist_candidate(
     candidate.blacklisted = True
     candidate.blacklist_reason = payload.reason
     return candidate
+
+
+@router.post("/jobs/{job_id}/placements/from-open-profile/{candidate_id}", response_model=PlacementOut, status_code=201)
+def attach_from_open_profile(
+    job_id: uuid.UUID,
+    candidate_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> PlacementOut:
+    job = _get_job_or_404(db, job_id, current_user.tenant_id)
+    # Unlike the regular attach_candidate endpoint, this permits a
+    # candidate outside the caller's own tenant — but ONLY when they've
+    # opted in via open_to_other_roles. Every other attach path still
+    # requires same-tenant. See docs/10.
+    candidate = (
+        db.query(Candidate)
+        .filter(Candidate.id == candidate_id, Candidate.open_to_other_roles.is_(True), Candidate.deleted_at.is_(None))
+        .first()
+    )
+    if candidate is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Candidate not found or not open to other roles")
+
+    existing = (
+        db.query(PipelinePlacement)
+        .filter(PipelinePlacement.candidate_id == candidate.id, PipelinePlacement.job_id == job_id)
+        .first()
+    )
+    if existing is not None:
+        return _to_placement_out(existing, candidate)
+
+    first_stage = db.query(JobStage).filter(JobStage.job_id == job_id).order_by(JobStage.position).first()
+    if first_stage is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="This job has no pipeline stages")
+
+    placement = PipelinePlacement(
+        tenant_id=job.tenant_id,  # the ATTACHING org's tenant, not the candidate's origin tenant
+        candidate_id=candidate.id, job_id=job_id, current_stage_id=first_stage.id,
+        status=PlacementStatus.active, moved_by=uuid.UUID(current_user.user_id),
+    )
+    db.add(placement)
+    db.flush()
+    db.add(
+        StageHistory(
+            tenant_id=job.tenant_id, placement_id=placement.id, from_stage_id=None, to_stage_id=first_stage.id,
+            stage_label_snapshot=first_stage.name, moved_by=uuid.UUID(current_user.user_id),
+        )
+    )
+    return _to_placement_out(placement, candidate)

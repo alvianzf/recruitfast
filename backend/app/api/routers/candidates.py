@@ -16,6 +16,7 @@ from app.schemas.candidate import (
     CVPreviewResponse,
     PossibleDuplicate,
 )
+from app.schemas.screening import OpenProfileCandidate
 from app.services import storage
 from app.services.cv_parser import SUPPORTED_EXTENSIONS, UnsupportedFileType, extract_text, parse_cv_text
 from app.services.dedup import compute_fingerprint
@@ -36,6 +37,28 @@ def list_candidates(
         .order_by(Candidate.created_at.desc())
         .all()
     )
+
+
+@router.get("/open-profiles", response_model=list[OpenProfileCandidate])
+def open_profiles(
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> list[Candidate]:
+    # Deliberately NO tenant_id filter — this is the one endpoint meant to
+    # surface the cross-tenant RLS exception on `candidates`
+    # (open_to_other_roles = true). Every other candidate query in this
+    # codebase adds an explicit tenant_id filter on top of RLS; this one
+    # doesn't, on purpose. See docs/10 "Open profiles". Only summary
+    # fields are exposed (schema-level, not RLS) — no resume/notes/other
+    # pipeline history crosses the tenant boundary.
+    #
+    # Registered ABOVE /{candidate_id} deliberately — a path-param route
+    # registered first would otherwise swallow "open-profiles" as if it
+    # were a candidate_id (Starlette matches routes in registration
+    # order per method; the UUID type coercion only happens after a
+    # route already matched, so a literal segment doesn't "fall through"
+    # to try the next route on a type mismatch — it 422s instead).
+    return db.query(Candidate).filter(Candidate.open_to_other_roles.is_(True), Candidate.deleted_at.is_(None)).all()
 
 
 @router.get("/{candidate_id}", response_model=CandidateDetailOut)
