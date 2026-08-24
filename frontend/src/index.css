@@ -1,3 +1,5 @@
+@import "@fontsource-variable/inter";
+
 html,
 body,
 #root {
@@ -6,4 +8,29 @@ body,
 
 body {
   margin: 0;
+}
+
+/* Fixed gradient mesh behind every glass surface — glassmorphism only
+   reads as "glass" against a backdrop with color/depth to refract. A flat
+   background defeats the whole effect. */
+.app-background {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(circle at 15% 15%, rgba(153, 0, 0, 0.35), transparent 45%),
+    radial-gradient(circle at 85% 20%, rgba(255, 120, 90, 0.22), transparent 50%),
+    radial-gradient(circle at 50% 100%, rgba(60, 10, 40, 0.35), transparent 55%),
+    linear-gradient(160deg, #1a0a12 0%, #2b0c14 45%, #170a14 100%);
+  background-color: #170a14;
+}
+
+:root[data-theme="light"] .app-background,
+.app-background.light {
+  background:
+    radial-gradient(circle at 15% 10%, rgba(153, 0, 0, 0.18), transparent 45%),
+    radial-gradient(circle at 85% 15%, rgba(255, 170, 130, 0.35), transparent 50%),
+    radial-gradient(circle at 50% 100%, rgba(255, 214, 210, 0.5), transparent 55%),
+    linear-gradient(160deg, #fff7f5 0%, #fdeeec 50%, #fbe4e6 100%);
+  background-color: #fff7f5;
 }

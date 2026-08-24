@@ -1,11 +1,14 @@
 import { createTheme, type PaletteMode } from "@mui/material";
 
 // Brand primary + Material Design 3-flavored shape/elevation tokens.
-// Every Paper (cards, modals, panels) gets the glass treatment by default.
-// Dense data tables should opt back out explicitly on the specific
-// TableContainer/Paper instance (sx={{ backdropFilter: "none",
-// backgroundColor: "background.paper" }}) — see docs/06-ui-design-system.md.
+// Every Paper (cards, modals, panels) gets the glass treatment by default,
+// floating over the fixed gradient mesh in index.css (.app-background) —
+// glassmorphism needs a colorful backdrop to actually read as "glass".
+// Dense data tables opt back out on the specific instance
+// (sx={{ backdropFilter: "none", backgroundColor: "background.paper" }}).
+// See docs/06-ui-design-system.md.
 export const BRAND_PRIMARY = "#990000";
+export const BRAND_PRIMARY_LIGHT = "#c62a2a";
 
 export function buildTheme(mode: PaletteMode) {
   const isDark = mode === "dark";
@@ -13,33 +16,51 @@ export function buildTheme(mode: PaletteMode) {
   return createTheme({
     palette: {
       mode,
-      primary: { main: BRAND_PRIMARY },
-      background: {
-        default: isDark ? "#141018" : "#fbf6f7",
-        paper: isDark ? "#1e1620" : "#ffffff",
+      primary: {
+        main: isDark ? BRAND_PRIMARY_LIGHT : BRAND_PRIMARY,
+        contrastText: "#ffffff",
       },
+      secondary: {
+        main: isDark ? "#ffb199" : "#7a1f1f",
+      },
+      background: {
+        default: "transparent",
+        paper: isDark ? "#241019" : "#ffffff",
+      },
+      divider: isDark ? "rgba(255,255,255,0.08)" : "rgba(60,10,20,0.08)",
     },
     shape: {
-      borderRadius: 16,
+      borderRadius: 20,
     },
     typography: {
-      fontFamily: '"Roboto Flex", "Roboto", "Helvetica", "Arial", sans-serif',
+      fontFamily: '"InterVariable", "Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+      h4: { fontWeight: 700, letterSpacing: -0.5 },
+      h5: { fontWeight: 700, letterSpacing: -0.3 },
+      h6: { fontWeight: 700 },
+      button: { fontWeight: 600, textTransform: "none" },
     },
     components: {
+      MuiCssBaseline: {
+        styleOverrides: {
+          body: {
+            backgroundColor: "transparent",
+          },
+        },
+      },
       MuiPaper: {
         styleOverrides: {
           root: ({ theme }) => ({
             backgroundImage: "none",
             ...(theme.palette.mode === "dark"
               ? {
-                  backgroundColor: "rgba(30, 22, 32, 0.6)",
-                  backdropFilter: "blur(16px)",
-                  border: "1px solid rgba(255, 255, 255, 0.08)",
+                  backgroundColor: "rgba(36, 16, 25, 0.72)",
+                  backdropFilter: "blur(20px) saturate(140%)",
+                  border: "1px solid rgba(255, 255, 255, 0.09)",
                 }
               : {
-                  backgroundColor: "rgba(255, 255, 255, 0.65)",
-                  backdropFilter: "blur(16px)",
-                  border: "1px solid rgba(0, 0, 0, 0.06)",
+                  backgroundColor: "rgba(255, 255, 255, 0.72)",
+                  backdropFilter: "blur(20px) saturate(140%)",
+                  border: "1px solid rgba(153, 0, 0, 0.08)",
                 }),
           }),
         },
@@ -49,11 +70,44 @@ export function buildTheme(mode: PaletteMode) {
           root: ({ theme }) => ({
             backgroundImage: "none",
             backgroundColor:
-              theme.palette.mode === "dark" ? "rgba(20, 16, 24, 0.7)" : "rgba(255, 255, 255, 0.7)",
-            backdropFilter: "blur(20px)",
+              theme.palette.mode === "dark" ? "rgba(26, 10, 18, 0.6)" : "rgba(255, 255, 255, 0.6)",
+            backdropFilter: "blur(24px) saturate(140%)",
             boxShadow: "none",
-            borderBottom: `1px solid ${theme.palette.divider}`,
+            borderRight: `1px solid ${theme.palette.divider}`,
           }),
+        },
+      },
+      MuiButton: {
+        styleOverrides: {
+          root: {
+            borderRadius: 100,
+            paddingInline: 20,
+          },
+          contained: ({ theme }) => ({
+            boxShadow: "none",
+            "&:hover": {
+              boxShadow: `0 8px 20px -6px ${theme.palette.primary.main}66`,
+            },
+          }),
+        },
+      },
+      MuiTextField: {
+        defaultProps: {
+          variant: "outlined",
+        },
+      },
+      MuiOutlinedInput: {
+        styleOverrides: {
+          root: {
+            borderRadius: 14,
+          },
+        },
+      },
+      MuiChip: {
+        styleOverrides: {
+          root: {
+            borderRadius: 8,
+          },
         },
       },
     },
