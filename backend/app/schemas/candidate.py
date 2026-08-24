@@ -1,0 +1,59 @@
+import uuid
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict
+
+
+class CandidateOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    full_name: str
+    email: str | None
+    phone: str | None
+    source: str | None
+    current_position: str | None
+    total_years_experience: str | None
+    blacklisted: bool
+
+
+class PossibleDuplicate(BaseModel):
+    candidate_id: uuid.UUID
+    full_name: str
+    email: str | None
+
+
+class CVPreviewItem(BaseModel):
+    temp_id: str
+    filename: str
+    parsed_fields: dict[str, Any] | None = None
+    parse_confidence: dict[str, Any] | None = None
+    parse_status: str
+    error: str | None = None
+    possible_duplicate: PossibleDuplicate | None = None
+
+
+class CVPreviewResponse(BaseModel):
+    items: list[CVPreviewItem]
+
+
+class CVCommitItem(BaseModel):
+    temp_id: str
+    filename: str
+    resolution: Literal["create", "skip"]
+    full_name: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    current_position: str | None = None
+    total_years_experience: str | None = None
+    parsed_fields: dict[str, Any] | None = None
+    parse_confidence: dict[str, Any] | None = None
+
+
+class CVCommitRequest(BaseModel):
+    items: list[CVCommitItem]
+
+
+class CVCommitResponse(BaseModel):
+    created: list[CandidateOut]
+    skipped_count: int
