@@ -1,24 +1,12 @@
 import { useState } from "react";
-import {
-  Chip,
-  CircularProgress,
-  Paper,
-  Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  ToggleButton,
-  ToggleButtonGroup,
-  Typography,
-} from "@mui/material";
+import { Chip, Paper, Stack, ToggleButton, ToggleButtonGroup, Typography } from "@mui/material";
+import { DataGrid, GridToolbar, type GridColDef } from "@mui/x-data-grid";
 import AddIcon from "@mui/icons-material/Add";
 import ViewListIcon from "@mui/icons-material/ViewList";
 import ViewKanbanIcon from "@mui/icons-material/ViewKanban";
+import WorkOutlinedIcon from "@mui/icons-material/WorkOutlined";
 
-import { useJobs } from "../api/jobs";
+import { useJobs, type Job } from "../api/jobs";
 import NewJobDialog from "./NewJobDialog";
 import PageHeader from "../components/PageHeader";
 import EmptyState from "../components/EmptyState";
@@ -34,6 +22,24 @@ const STATUS_COLOR: Record<string, "success" | "warning" | "default" | "error"> 
   filled: "default",
   cancelled: "error",
 };
+
+const columns: GridColDef<Job>[] = [
+  { field: "title", headerName: "Title", flex: 1.2, minWidth: 200 },
+  {
+    field: "status",
+    headerName: "Status",
+    width: 130,
+    renderCell: (params) => (
+      <Chip
+        size="small"
+        label={String(params.value).replace("_", " ")}
+        color={STATUS_COLOR[params.value as string] ?? "default"}
+        variant="outlined"
+      />
+    ),
+  },
+  { field: "overview", headerName: "Overview", flex: 2, minWidth: 240 },
+];
 
 export default function Jobs() {
   const [view, setView] = useState<ViewMode>("table");
@@ -57,54 +63,28 @@ export default function Jobs() {
       </PageHeader>
 
       {view === "table" ? (
-        <TableContainer component={Paper} sx={{ backdropFilter: "none" }}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Title</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Overview</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {isLoading && (
-                <TableRow>
-                  <TableCell colSpan={3} sx={{ textAlign: "center", py: 6 }}>
-                    <CircularProgress size={28} />
-                  </TableCell>
-                </TableRow>
-              )}
-              {!isLoading && jobs?.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={3}>
-                    <EmptyState
-                      title="No jobs yet"
-                      description="Create your first open position to start building a pipeline."
-                    />
-                  </TableCell>
-                </TableRow>
-              )}
-              {jobs?.map((job) => (
-                <TableRow key={job.id} hover>
-                  <TableCell sx={{ fontWeight: 600 }}>{job.title}</TableCell>
-                  <TableCell>
-                    <Chip
-                      size="small"
-                      label={job.status.replace("_", " ")}
-                      color={STATUS_COLOR[job.status] ?? "default"}
-                      variant="outlined"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" color="text.secondary">
-                      {job.overview || "—"}
-                    </Typography>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+        <Paper sx={{ backdropFilter: "none", height: 600, p: 1 }}>
+          <DataGrid
+            rows={jobs ?? []}
+            columns={columns}
+            loading={isLoading}
+            density="comfortable"
+            pageSizeOptions={[20, 50, 100]}
+            initialState={{ pagination: { paginationModel: { pageSize: 20 } } }}
+            slots={{
+              toolbar: GridToolbar,
+              noRowsOverlay: () => (
+                <EmptyState
+                  icon={<WorkOutlinedIcon />}
+                  title="No jobs yet"
+                  description="Create your first open position to start building a pipeline."
+                />
+              ),
+            }}
+            slotProps={{ toolbar: { showQuickFilter: true } }}
+            sx={{ border: "none" }}
+          />
+        </Paper>
       ) : (
         <Paper sx={{ p: 4 }}>
           <Typography color="text.secondary">Kanban board — coming soon.</Typography>
