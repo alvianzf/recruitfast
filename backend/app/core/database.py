@@ -1,3 +1,5 @@
+from contextlib import contextmanager
+
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
@@ -33,5 +35,35 @@ def get_db():
     db = SessionLocal()
     try:
         yield db
+    finally:
+        db.close()
+
+
+@contextmanager
+def raw_session():
+    """For pre-auth / cross-tenant endpoints that can't use the
+    `get_db` FastAPI dependency (no authenticated request context yet —
+    login, registration, the public job board). Always explicitly
+    commits or rolls back before closing.
+
+    This matters specifically because of connection pooling: any
+    `SET LOCAL`/`set_config(..., true)` value (used by set_rls_context)
+    is transaction-scoped and only actually clears on COMMIT or ROLLBACK.
+    A bare `SessionLocal(); ...; db.close()` with no explicit commit/
+    rollback can leave a stray value active on the underlying pooled
+    connection, which then leaks into whichever *unrelated* request
+    happens to check out that same physical connection next — surfacing
+    as a confusing, intermittent "invalid input syntax for type uuid: ''"
+    error somewhere that looks completely unrelated to its actual cause.
+    Found and fixed while building the public job board (docs/10) — see
+    that migration/router history for the debugging trail.
+    """
+    db = SessionLocal()
+    try:
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()
