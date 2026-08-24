@@ -5,13 +5,16 @@ import {
   Alert,
   Box,
   Button,
+  Checkbox,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControlLabel,
   Stack,
   TextField,
 } from "@mui/material";
+import { Controller } from "react-hook-form";
 import { isAxiosError } from "axios";
 
 import { useCreateJob } from "../api/jobs";
@@ -20,6 +23,7 @@ const schema = z.object({
   title: z.string().min(1, "Title is required"),
   overview: z.string().optional(),
   description: z.string().optional(),
+  unassigned: z.boolean(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -30,8 +34,9 @@ export default function NewJobDialog({ open, onClose }: { open: boolean; onClose
     register,
     handleSubmit,
     reset,
+    control,
     formState: { errors },
-  } = useForm<FormValues>({ resolver: zodResolver(schema) });
+  } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { unassigned: false } });
 
   function handleClose() {
     reset();
@@ -67,6 +72,16 @@ export default function NewJobDialog({ open, onClose }: { open: boolean; onClose
             />
             <TextField label="Overview" fullWidth {...register("overview")} />
             <TextField label="Description" fullWidth multiline minRows={3} {...register("description")} />
+            <Controller
+              name="unassigned"
+              control={control}
+              render={({ field }) => (
+                <FormControlLabel
+                  control={<Checkbox checked={field.value} onChange={(e) => field.onChange(e.target.checked)} />}
+                  label="Leave unassigned (recruiters can self-claim it)"
+                />
+              )}
+            />
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 3 }}>

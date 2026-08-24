@@ -7,12 +7,14 @@ export interface Job {
   title: string;
   overview: string | null;
   status: string;
+  owner_recruiter_id: string | null;
 }
 
 export interface CreateJobInput {
   title: string;
   overview?: string;
   description?: string;
+  unassigned?: boolean;
 }
 
 export function useJobs() {
@@ -42,6 +44,34 @@ export function useCreateJob() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["jobs"] });
+    },
+  });
+}
+
+export function useClaimJob() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (jobId: string) => {
+      const { data } = await api.post<Job>(`/jobs/${jobId}/claim`);
+      return data;
+    },
+    onSuccess: (job) => {
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["job", job.id] });
+    },
+  });
+}
+
+export function useAssignJob(jobId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (recruiterId: string) => {
+      const { data } = await api.post<Job>(`/jobs/${jobId}/assign`, { recruiter_id: recruiterId });
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["job", jobId] });
     },
   });
 }
