@@ -14,6 +14,7 @@ from app.api.routers import (
     org,
     pipeline,
     public_board,
+    screening,
 )
 from app.core.config import settings
 
@@ -45,3 +46,4 @@ app.include_router(notes.router)
 app.include_router(metrics.router)
 app.include_router(bulk_import.router)
 app.include_router(public_board.router)
+app.include_router(screening.router)
