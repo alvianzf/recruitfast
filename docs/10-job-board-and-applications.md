@@ -104,9 +104,39 @@ presentable and memorable.
    here (unlike the recruiter flow) — a candidate applying to a job
    expects one clear submit action, not a review queue.
 3. **Cover letter** — optional free text.
-4. **Screening questions** — 0–4 questions the recruiter configured on
-   the job, answered inline. Skipped if the job has none.
-5. **"I'm open for other roles with other companies"** checkbox —
+4. **Default profile questions** — always present, on every job,
+   regardless of custom screening questions, separate from the Cover
+   Letter field above:
+   - **Years of experience** — required, self-reported; overwrites
+     `candidates.total_years_experience` (self-reported is more
+     trustworthy than the regex/heuristic CV-parse guess it might
+     otherwise be defaulting to — see
+     [04-cv-parser.md](04-cv-parser.md)).
+   - **LinkedIn URL** — required; populates `candidates.linkedin_url`
+     (new column — profile URLs weren't captured anywhere on the
+     candidate before this).
+   - **GitHub URL** — optional; populates `candidates.github_url` (new
+     column). Only shown when the job is flagged `is_technical_role`
+     (new boolean on `jobs`, set by the recruiter at job creation — a
+     plain checkbox, not a full job-category taxonomy, since that's the
+     only thing this needs to gate).
+   - **Portfolio URL** — optional; populates `candidates.portfolio_url`
+     (new column). Always shown, technical or not — a portfolio is
+     relevant to design/writing/other non-engineering roles too, unlike
+     GitHub.
+
+   These are **not** elimination questions — they don't have a recruiter-
+   set "expected answer" and don't factor into the eligible/not-eligible
+   computation below. They're profile-building fields the application
+   form always asks, distinct from the custom pass/fail questions in
+   [Screening questions](#screening-questions). Answers are still stored
+   in the application's `answers` record for a complete submission
+   history, in addition to being written onto the candidate.
+5. **Screening questions** — the recruiter's custom, job-specific
+   elimination questions (0 up to the role-based cap — see
+   [Screening questions](#screening-questions)), answered inline. Skipped
+   if the job has none.
+6. **"I'm open for other roles with other companies"** checkbox —
    controls `candidates.open_to_other_roles` (see
    [Open profiles](#open-profiles-a-narrow-deliberate-rls-exception)
    below). Unchecked by default — opt-in, not opt-out.
@@ -221,10 +251,11 @@ worth being explicit about exactly how narrow it is.
 
 ## Data model additions
 
-### `jobs.visibility`
+### `jobs.visibility` / `jobs.is_technical_role`
 | column | type | notes |
 |---|---|---|
 | visibility | enum(`public`, `unlisted`) default `public` | independent of `status` — an unlisted job can be open or closed |
+| is_technical_role | bool default false | gates whether the GitHub URL default question is shown on the apply form |
 
 ### `tenants.slug`
 | column | type | notes |
@@ -239,7 +270,7 @@ worth being explicit about exactly how narrow it is.
 | tenant_id | uuid FK | denormalized, direct RLS filtering — same pattern as `job_stages` |
 | question_text | text | |
 | expected_answer | text | |
-| position | int | display/answer order, 0–3 |
+| position | int | display/answer order; capped at 4 rows total (0–3) per job for freelance recruiters, unbounded for Org |
 
 ### `job_applications`
 | column | type | notes |
@@ -254,10 +285,13 @@ worth being explicit about exactly how narrow it is.
 | placement_id | uuid FK → pipeline_placements, nullable | set once eligible (immediately, or when a recruiter flips it) |
 | created_at | timestamptz | |
 
-### `candidates.open_to_other_roles`
+### `candidates.open_to_other_roles` / profile URL columns
 | column | type | notes |
 |---|---|---|
 | open_to_other_roles | bool default false | the sole gate for the RLS exception above |
+| linkedin_url | text, nullable | from the default profile question, required on application |
+| github_url | text, nullable | from the default profile question, optional, technical roles only |
+| portfolio_url | text, nullable | from the default profile question, optional, all roles |
 
 ## API endpoints
 
@@ -269,6 +303,6 @@ worth being explicit about exactly how narrow it is.
 **Authenticated (recruiter/org_admin):**
 - `GET /jobs/{job_id}/applications?eligible=true|false` — review list.
 - `POST /jobs/{job_id}/applications/{id}/mark-eligible` — creates the placement, matching the "not eligible → eligible" promotion.
-- `GET/POST /jobs/{job_id}/screening-questions` — manage a job's up-to-4 questions.
+- `GET/POST /jobs/{job_id}/screening-questions` — manage a job's custom questions; server-side enforces the 4-question cap for freelance recruiters, no cap for Org.
 - `GET /candidates/open-profiles` — the cross-tenant list described above.
 - `POST /jobs/{job_id}/placements/from-open-profile/{candidate_id}` — reuses the existing attach endpoint's logic but permits a candidate outside the caller's own tenant when `open_to_other_roles = true`.
