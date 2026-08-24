@@ -44,6 +44,28 @@
   table-only capability; Kanban's value is single-item spatial context, not
   bulk operations.
 
+## Navigation: breadcrumbs
+
+Every page below the top-level nav destinations (Dashboard, Jobs,
+Candidates) shows a breadcrumb trail above the page title, reflecting
+actual navigational depth rather than a fixed decoration:
+
+- Top level: `Jobs` / `Candidates` — no breadcrumb, the sidebar nav item
+  itself is the location indicator.
+- One level deep: `Jobs / Backend Engineer` (job detail + Kanban board),
+  `Candidates / Muhammad Iqbal` (candidate profile) — each segment before
+  the current page is a link back to that list.
+- The current page's segment is plain text, not a link (you're already
+  there).
+- Lives in the same content column as the page header (not the sidebar),
+  directly above `PageHeader`, so it scrolls with content on mobile rather
+  than eating fixed vertical space in the nav rail.
+
+This is a small piece of chrome but it's what makes drilling into a job's
+pipeline or a candidate's profile feel like a place you can navigate back
+out of, not a dead end — especially relevant once Kanban board and
+candidate detail views exist as their own routes rather than modals.
+
 ## Confidentiality-aware UI patterns
 
 - Org Admin's "Admin Override" edits show a distinct visual marker
