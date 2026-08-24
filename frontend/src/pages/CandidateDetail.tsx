@@ -8,6 +8,10 @@ import {
   Button,
   Chip,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Divider,
   Grid,
   Paper,
@@ -20,11 +24,15 @@ import {
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
+import BlockOutlinedIcon from "@mui/icons-material/BlockOutlined";
 
 import { useCandidate } from "../api/candidates";
 import { useAddCandidateNote, useCandidateNotes } from "../api/notes";
+import { useBlacklistCandidate } from "../api/pipeline";
+import { useBlacklistStatuses } from "../api/blacklist";
 import Breadcrumbs from "../components/Breadcrumbs";
 import PageHeader from "../components/PageHeader";
+import BlacklistBadge from "../components/BlacklistBadge";
 
 function InfoRow({ label, value }: { label: string; value: string | null }) {
   if (!value) return null;
@@ -105,9 +113,67 @@ function NotesPanel({ candidateId }: { candidateId: string }) {
   );
 }
 
+function BlacklistDialog({
+  candidateId,
+  open,
+  onClose,
+}: {
+  candidateId: string;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const blacklist = useBlacklistCandidate();
+  const [reason, setReason] = useState("");
+
+  async function handleConfirm() {
+    if (!reason.trim()) return;
+    await blacklist.mutateAsync({ candidateId, reason });
+    setReason("");
+    onClose();
+  }
+
+  return (
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+      <DialogTitle sx={{ fontWeight: 700 }}>Blacklist this candidate</DialogTitle>
+      <DialogContent>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          This flags the candidate as do-not-contact in your org, and files the email in the
+          platform-wide blacklist registry so other recruiters are warned if this person applies
+          elsewhere.
+        </Typography>
+        <TextField
+          label="Reason"
+          required
+          multiline
+          minRows={2}
+          fullWidth
+          autoFocus
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+        />
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 3 }}>
+        <Button onClick={onClose} color="inherit">
+          Cancel
+        </Button>
+        <Button
+          variant="contained"
+          color="error"
+          disabled={!reason.trim() || blacklist.isPending}
+          onClick={handleConfirm}
+        >
+          {blacklist.isPending ? "Blacklisting…" : "Blacklist"}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 export default function CandidateDetail() {
   const { candidateId = "" } = useParams();
   const { data: candidate, isLoading } = useCandidate(candidateId);
+  const [blacklistOpen, setBlacklistOpen] = useState(false);
+  const { data: blacklistStatuses } = useBlacklistStatuses([candidate?.email]);
 
   if (isLoading || !candidate) {
     return (
@@ -120,11 +186,25 @@ export default function CandidateDetail() {
   const doc = candidate.current_document;
   const skills = doc?.parsed_fields.technical_skills ?? {};
   const hasSkills = Object.values(skills).some((list) => list && list.length > 0);
+  const elsewhereStatus = blacklistStatuses?.find((s) => s.email.toLowerCase() === candidate.email?.toLowerCase());
 
   return (
     <Stack spacing={2}>
       <Breadcrumbs items={[{ label: "Candidates", to: "/candidates" }, { label: candidate.full_name }]} />
-      <PageHeader title={candidate.full_name} />
+      <PageHeader
+        title={candidate.full_name}
+        action={
+          candidate.blacklisted
+            ? undefined
+            : {
+                label: "Blacklist candidate",
+                icon: <BlockOutlinedIcon fontSize="small" />,
+                onClick: () => setBlacklistOpen(true),
+              }
+        }
+      >
+        <BlacklistBadge status={elsewhereStatus} />
+      </PageHeader>
 
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, md: 7 }}>
@@ -254,6 +334,8 @@ export default function CandidateDetail() {
           <NotesPanel candidateId={candidateId} />
         </Grid>
       </Grid>
+
+      <BlacklistDialog candidateId={candidateId} open={blacklistOpen} onClose={() => setBlacklistOpen(false)} />
     </Stack>
   );
 }
