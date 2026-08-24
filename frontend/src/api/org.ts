@@ -8,6 +8,7 @@ export interface Recruiter {
   email: string;
   role: string;
   status: string;
+  team_id: string | null;
 }
 
 export function useRecruiters() {

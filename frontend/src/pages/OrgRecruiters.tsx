@@ -7,10 +7,12 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControl,
   IconButton,
   Menu,
   MenuItem,
   Paper,
+  Select,
   Stack,
   Table,
   TableBody,
@@ -19,11 +21,16 @@ import {
   TableHead,
   TableRow,
   TextField,
+  Typography,
 } from "@mui/material";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import PersonAddOutlinedIcon from "@mui/icons-material/PersonAddOutlined";
+import GroupsOutlinedIcon from "@mui/icons-material/GroupsOutlined";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlined";
+import AddIcon from "@mui/icons-material/Add";
 
 import { useDeactivateRecruiter, useInviteRecruiter, useReassignJobs, useRecruiters, type Recruiter } from "../api/org";
+import { useAssignRecruiterTeam, useCreateTeam, useDeleteTeam, useTeams } from "../api/teams";
 import PageHeader from "../components/PageHeader";
 
 function InviteDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -118,10 +125,73 @@ function ReassignDialog({
   );
 }
 
+function ManageTeamsDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { data: teams } = useTeams();
+  const createTeam = useCreateTeam();
+  const deleteTeam = useDeleteTeam();
+  const [name, setName] = useState("");
+
+  async function handleCreate() {
+    if (!name.trim()) return;
+    await createTeam.mutateAsync(name.trim());
+    setName("");
+  }
+
+  return (
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+      <DialogTitle sx={{ fontWeight: 700 }}>Manage teams</DialogTitle>
+      <DialogContent>
+        <Stack spacing={1.5}>
+          {teams?.map((t) => (
+            <Stack key={t.id} direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
+              <Typography sx={{ flex: 1 }}>{t.name}</Typography>
+              <Chip size="small" label={`${t.member_count} member${t.member_count === 1 ? "" : "s"}`} variant="outlined" />
+              <IconButton size="small" onClick={() => deleteTeam.mutate(t.id)}>
+                <DeleteOutlineIcon fontSize="small" />
+              </IconButton>
+            </Stack>
+          ))}
+          {teams?.length === 0 && (
+            <Typography variant="body2" color="text.secondary">
+              No teams yet.
+            </Typography>
+          )}
+          <Stack direction="row" spacing={1.5}>
+            <TextField
+              size="small"
+              label="New team name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              fullWidth
+            />
+            <Button
+              variant="outlined"
+              startIcon={<AddIcon fontSize="small" />}
+              onClick={handleCreate}
+              disabled={!name.trim() || createTeam.isPending}
+              sx={{ whiteSpace: "nowrap" }}
+            >
+              Add
+            </Button>
+          </Stack>
+        </Stack>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 3 }}>
+        <Button onClick={onClose} color="inherit">
+          Close
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 export default function OrgRecruiters() {
   const { data: recruiters } = useRecruiters();
+  const { data: teams } = useTeams();
   const deactivate = useDeactivateRecruiter();
+  const assignTeam = useAssignRecruiterTeam();
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [teamsOpen, setTeamsOpen] = useState(false);
   const [reassignTarget, setReassignTarget] = useState<Recruiter | null>(null);
   const [menuState, setMenuState] = useState<{ anchor: HTMLElement; recruiter: Recruiter } | null>(null);
 
@@ -130,7 +200,11 @@ export default function OrgRecruiters() {
       <PageHeader
         title="Recruiters"
         action={{ label: "Invite recruiter", icon: <PersonAddOutlinedIcon fontSize="small" />, onClick: () => setInviteOpen(true) }}
-      />
+      >
+        <Button variant="outlined" startIcon={<GroupsOutlinedIcon fontSize="small" />} onClick={() => setTeamsOpen(true)}>
+          Manage teams
+        </Button>
+      </PageHeader>
 
       <TableContainer component={Paper} sx={{ backdropFilter: "none" }}>
         <Table>
@@ -139,6 +213,7 @@ export default function OrgRecruiters() {
               <TableCell>Name</TableCell>
               <TableCell>Email</TableCell>
               <TableCell>Role</TableCell>
+              <TableCell>Team</TableCell>
               <TableCell>Status</TableCell>
               <TableCell align="right" />
             </TableRow>
@@ -149,6 +224,30 @@ export default function OrgRecruiters() {
                 <TableCell sx={{ fontWeight: 600 }}>{r.full_name}</TableCell>
                 <TableCell>{r.email}</TableCell>
                 <TableCell>{r.role.replace("_", " ")}</TableCell>
+                <TableCell>
+                  {r.role === "recruiter" ? (
+                    <FormControl size="small" sx={{ minWidth: 160 }}>
+                      <Select
+                        displayEmpty
+                        value={r.team_id ?? ""}
+                        onChange={(e) =>
+                          assignTeam.mutate({ recruiterId: r.id, teamId: e.target.value === "" ? null : e.target.value })
+                        }
+                      >
+                        <MenuItem value="">
+                          <em>No team</em>
+                        </MenuItem>
+                        {teams?.map((t) => (
+                          <MenuItem key={t.id} value={t.id}>
+                            {t.name}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  ) : (
+                    "—"
+                  )}
+                </TableCell>
                 <TableCell>
                   <Chip
                     size="small"
@@ -189,6 +288,7 @@ export default function OrgRecruiters() {
 
       <InviteDialog open={inviteOpen} onClose={() => setInviteOpen(false)} />
       <ReassignDialog recruiter={reassignTarget} recruiters={recruiters ?? []} onClose={() => setReassignTarget(null)} />
+      <ManageTeamsDialog open={teamsOpen} onClose={() => setTeamsOpen(false)} />
     </Stack>
   );
 }
