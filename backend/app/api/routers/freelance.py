@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, status
 
-from app.core.database import SessionLocal
+from app.core.database import raw_session
 from app.core.security import hash_password
 from app.models.freelance import FreelanceApplication
 from app.models.tenant import Tenant, TenantType
@@ -14,8 +14,7 @@ router = APIRouter(prefix="/freelance", tags=["freelance"])
 def register_freelance(payload: FreelanceRegisterRequest) -> FreelanceRegisterResponse:
     # Public, pre-auth endpoint — no tenant known yet, so this runs without
     # the RLS-scoped session. See docs/01 freelance registration flow.
-    db = SessionLocal()
-    try:
+    with raw_session() as db:
         existing = db.query(User).filter(User.email == payload.email).first()
         if existing is not None:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
@@ -48,7 +47,4 @@ def register_freelance(payload: FreelanceRegisterRequest) -> FreelanceRegisterRe
                 notes=payload.notes,
             )
         )
-        db.commit()
         return FreelanceRegisterResponse()
-    finally:
-        db.close()

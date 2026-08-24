@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, status
 
-from app.core.database import SessionLocal
+from app.core.database import raw_session
 from app.core.security import create_access_token, create_refresh_token, verify_password
 from app.models.user import User, UserStatus
 from app.schemas.auth import LoginRequest, TokenResponse
@@ -13,8 +13,7 @@ def login(payload: LoginRequest) -> TokenResponse:
     # Pre-auth lookup by email, so no tenant is known yet — the users
     # table holds account metadata, not recruiter content, so it isn't
     # RLS-restricted the way jobs/candidates are. See docs/02.
-    db = SessionLocal()
-    try:
+    with raw_session() as db:
         user = db.query(User).filter(User.email == payload.email, User.deleted_at.is_(None)).first()
         if user is None or not verify_password(payload.password, user.password_hash):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
@@ -33,5 +32,3 @@ def login(payload: LoginRequest) -> TokenResponse:
         )
         refresh_token = create_refresh_token(user_id=str(user.id))
         return TokenResponse(access_token=access_token, refresh_token=refresh_token)
-    finally:
-        db.close()

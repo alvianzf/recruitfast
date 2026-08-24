@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import CurrentUser, get_db, require_role
-from app.core.database import SessionLocal
+from app.core.database import raw_session
 from app.models.freelance import FreelanceApplication, FreelanceApplicationStatus
 from app.models.user import User, UserStatus
 from app.schemas.freelance import FreelanceApplicationOut, FreelanceRejectRequest
@@ -49,8 +49,7 @@ def approve_freelance_application(
     application_id: uuid.UUID,
     current_user: CurrentUser = Depends(require_role("superadmin")),
 ) -> None:
-    db = SessionLocal()
-    try:
+    with raw_session() as db:
         application = db.query(FreelanceApplication).filter(FreelanceApplication.id == application_id).first()
         if application is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Application not found")
@@ -59,9 +58,6 @@ def approve_freelance_application(
         application.status = FreelanceApplicationStatus.approved
         application.decided_by = uuid.UUID(current_user.user_id)
         user.status = UserStatus.active
-        db.commit()
-    finally:
-        db.close()
 
 
 @router.post("/freelance-applications/{application_id}/reject", status_code=204)
@@ -71,8 +67,7 @@ def reject_freelance_application(
     # applicant); no email service is wired up yet, so it's not sent or persisted right now.
     current_user: CurrentUser = Depends(require_role("superadmin")),
 ) -> None:
-    db = SessionLocal()
-    try:
+    with raw_session() as db:
         application = db.query(FreelanceApplication).filter(FreelanceApplication.id == application_id).first()
         if application is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Application not found")
@@ -85,6 +80,3 @@ def reject_freelance_application(
         # to retain a decision *about* once the account is gone.
         db.delete(application)
         db.delete(user)
-        db.commit()
-    finally:
-        db.close()

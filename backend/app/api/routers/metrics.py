@@ -6,7 +6,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.api.deps import CurrentUser, get_current_user, get_db, require_role
-from app.core.database import SessionLocal
+from app.core.database import raw_session
 from app.models.candidate import Candidate
 from app.models.job import Job, JobStatus
 from app.models.pipeline import JobStage
@@ -116,8 +116,7 @@ def platform_metrics(current_user: CurrentUser = Depends(require_role("superadmi
     # a periodically refreshed materialized view) rather than loosening
     # the RLS policy for convenience — left as follow-up, not shipped
     # here. This endpoint only reports what's honestly reachable today.
-    db = SessionLocal()
-    try:
+    with raw_session() as db:
         active_org_tenants = (
             db.query(func.count(Tenant.id)).filter(Tenant.type == TenantType.org).scalar() or 0
         )
@@ -150,5 +149,3 @@ def platform_metrics(current_user: CurrentUser = Depends(require_role("superadmi
             total_recruiters=total_recruiters,
             freelance_queue_depth=freelance_queue_depth,
         )
-    finally:
-        db.close()
