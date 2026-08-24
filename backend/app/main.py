@@ -8,8 +8,14 @@ app = FastAPI(title="RecruitFast API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    allow_credentials=True,
+    # Wildcard for now to stop localhost-vs-127.0.0.1 origin mismatches
+    # from blocking local dev — tighten to settings.cors_origins (or a
+    # real production allowlist) before this goes anywhere near the
+    # internet. allow_credentials must be False to pair with "*" (CORS
+    # spec forbids the combination); harmless here since auth is a
+    # Bearer token in the Authorization header, not a cookie.
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
