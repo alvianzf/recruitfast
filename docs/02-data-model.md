@@ -242,13 +242,42 @@ picked specifically because the QA review flagged that UI-level hiding is
 not sufficient (a direct API call, an export job, or a backup restore must
 not be able to bypass it).
 
-- Every tenant-scoped table: `USING (tenant_id = current_setting('app.tenant_id')::uuid)`.
-- The `superadmin` DB role has **no policy** granting access to
-  `jobs`, `candidates`, `pipeline_placements`, `stage_history`, `notes`,
-  `candidate_documents` — queries against these tables from a superadmin
-  session return zero rows, full stop, independent of application code.
-- `assisted_access_requests`, once `approved` and unexpired, grants a
+- Implemented (see `backend/alembic/versions/0002_row_level_security.py`):
+  every RLS-scoped table (`jobs`, `candidates`, `job_stages`,
+  `pipeline_placements`, `stage_history`, `notes`, `candidate_documents`,
+  `documents`) gets one policy: `current_setting('app.role', true) IS
+  DISTINCT FROM 'superadmin' AND tenant_id = current_setting('app.tenant_id',
+  true)::uuid`. The API connects as a single DB role and sets
+  `app.role`/`app.tenant_id` per request via `SET LOCAL`
+  (`app/core/database.py: set_rls_context`) — a session with
+  `app.role = 'superadmin'` matches no row, on any of these tables,
+  independent of application code.
+- `assisted_access_requests`, once `approved` and unexpired, will grant a
   narrowly-scoped, time-limited additional policy for that one
-  `resource_id` only.
+  `resource_id` — **not yet implemented**; today Assisted Access has a
+  request/approval table but no corresponding RLS grant. Follow-up work,
+  noted in the migration's docstring.
 - Application-level authorization mirrors this (defense in depth) but RLS
   is the backstop that makes the guarantee true even if app code has a bug.
+
+**Critical operational requirement:** Postgres superusers bypass RLS
+entirely, and `FORCE ROW LEVEL SECURITY` (applied to every table above)
+does not change that — it only forces the *table owner* to respect RLS if
+the owner isn't a superuser. **The API must connect as a non-superuser
+role**, or every guarantee in this section is silently void. Local dev is
+currently configured to connect as `postgres`, which on a standard local
+install is a superuser — this needs to change before RLS can be
+considered actually enforced, even in dev:
+
+```sql
+-- Run once, as postgres, against the recruitfast database:
+CREATE ROLE recruitfast_app LOGIN PASSWORD '<pick-your-own-local-password>';
+GRANT ALL ON ALL TABLES IN SCHEMA public TO recruitfast_app;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO recruitfast_app;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO recruitfast_app;
+```
+
+Then point `DATABASE_URL` in `backend/.env` at `recruitfast_app`, not
+`postgres`. This is left as a manual step (not scripted into a migration)
+specifically so no real password ever gets hardcoded into source — see
+the credential-handling note in [07-tech-stack.md](07-tech-stack.md).
