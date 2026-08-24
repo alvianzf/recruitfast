@@ -4,6 +4,7 @@ import AppShell from "./components/AppShell";
 import ProtectedRoute from "./auth/ProtectedRoute";
 import Dashboard from "./pages/Dashboard";
 import Jobs from "./pages/Jobs";
+import JobDetail from "./pages/JobDetail";
 import Candidates from "./pages/Candidates";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -29,6 +30,16 @@ export default function App() {
           <ProtectedRoute>
             <AppShell>
               <Jobs />
+            </AppShell>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/jobs/:jobId"
+        element={
+          <ProtectedRoute>
+            <AppShell>
+              <JobDetail />
             </AppShell>
           </ProtectedRoute>
         }
