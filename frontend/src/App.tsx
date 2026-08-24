@@ -12,12 +12,17 @@ import AdminFreelanceQueue from "./pages/AdminFreelanceQueue";
 import OrgRecruiters from "./pages/OrgRecruiters";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import CareersBoard from "./pages/public/CareersBoard";
+import ApplyPage from "./pages/public/ApplyPage";
 
 export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/careers/public" element={<CareersBoard freelance />} />
+      <Route path="/careers/:slug" element={<CareersBoard />} />
+      <Route path="/apply/:jobId" element={<ApplyPage />} />
       <Route
         path="/"
         element={
