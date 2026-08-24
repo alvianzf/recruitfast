@@ -1,6 +1,6 @@
 import uuid
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class JobStageOut(BaseModel):
@@ -59,4 +59,4 @@ class PlacementStatusUpdate(BaseModel):
 
 
 class BlacklistUpdate(BaseModel):
-    reason: str
+    reason: str = Field(min_length=1)

@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routers import (
     admin,
     auth,
+    blacklist,
     bulk_import,
     candidates,
     freelance,
@@ -47,3 +48,4 @@ app.include_router(metrics.router)
 app.include_router(bulk_import.router)
 app.include_router(public_board.router)
 app.include_router(screening.router)
+app.include_router(blacklist.router)

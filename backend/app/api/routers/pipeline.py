@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import CurrentUser, get_current_user, get_db
+from app.models.blacklist import EmailBlacklistEntry
 from app.models.candidate import Candidate
 from app.models.job import Job
 from app.models.pipeline import JobStage
@@ -314,6 +315,19 @@ def blacklist_candidate(
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Candidate not found")
     candidate.blacklisted = True
     candidate.blacklist_reason = payload.reason
+
+    # Also file a platform-wide entry by email so other tenants get
+    # flagged if this person applies elsewhere. See docs/01 and
+    # app/models/blacklist.py.
+    if candidate.email:
+        db.add(
+            EmailBlacklistEntry(
+                email=candidate.email,
+                reason=payload.reason,
+                tenant_id=uuid.UUID(current_user.tenant_id),
+            )
+        )
+
     return candidate
 
 
