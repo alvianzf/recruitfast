@@ -43,6 +43,14 @@ for the shared library/styling decisions.
 3. **Recruiter workload** *(horizontal bar chart, one bar per recruiter)* —
    load-balancing signal, feeds the reassignment flow in
    [01-roles-permissions.md](01-roles-permissions.md).
+   **Implemented, extended beyond the original spec:** the Org Admin can
+   group recruiters into Teams (`GET/POST /teams`,
+   `PATCH /org/recruiters/{id}/team`) and every chart on this dashboard —
+   jobs-by-status, workload, the age buckets — takes an optional
+   `team_id` filter. A dedicated **recruiter performance breakdown**
+   (`GET /metrics/org/recruiters`) also ships: per-recruiter open jobs,
+   active candidates, offers, and won/lost jobs, as both a grouped bar
+   chart and a table, filterable by the same team dropdown.
 4. **Jobs open >30/60/90 days** *(stacked bar by age bucket)* — at-risk
    flags, severity visible at a glance.
 5. **Org-wide stage bottleneck** *(bar chart of avg time-in-stage, one bar

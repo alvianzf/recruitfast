@@ -45,6 +45,9 @@ standing "login as user" impersonation path.
   queue recruiters self-claim from.
 - Bulk-reassign all open jobs from one recruiter to another (recruiter
   leaves/is out) — first-class action, not a manual one-by-one fix.
+- Group recruiters into **Teams** and filter the org dashboard's charts —
+  including a per-recruiter performance breakdown — by team. See
+  [05-dashboards-metrics.md](05-dashboards-metrics.md).
 - Edit org-wide pipeline templates, custom field definitions, and org
   billing/seat count (within Superadmin-set plan limits).
 - Override a candidate's pipeline stage directly. This is allowed, but is
