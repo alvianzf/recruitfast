@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Paper, Stack } from "@mui/material";
 import { DataGrid, GridToolbar, type GridColDef } from "@mui/x-data-grid";
+import { useNavigate } from "react-router-dom";
 import UploadFileOutlinedIcon from "@mui/icons-material/UploadFileOutlined";
 
 import { useCandidates, type Candidate } from "../api/candidates";
@@ -20,6 +21,7 @@ const columns: GridColDef<Candidate>[] = [
 export default function Candidates() {
   const [uploadOpen, setUploadOpen] = useState(false);
   const { data: candidates, isLoading } = useCandidates();
+  const navigate = useNavigate();
 
   return (
     <Stack spacing={3}>
@@ -40,6 +42,7 @@ export default function Candidates() {
           density="comfortable"
           pageSizeOptions={[20, 50, 100]}
           initialState={{ pagination: { paginationModel: { pageSize: 20 } } }}
+          onRowClick={(params) => navigate(`/candidates/${params.id}`)}
           slots={{
             toolbar: GridToolbar,
             noRowsOverlay: () => (
@@ -51,7 +54,7 @@ export default function Candidates() {
             ),
           }}
           slotProps={{ toolbar: { showQuickFilter: true } }}
-          sx={{ border: "none" }}
+          sx={{ border: "none", "& .MuiDataGrid-row": { cursor: "pointer" } }}
         />
       </Paper>
 

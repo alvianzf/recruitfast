@@ -7,6 +7,7 @@ import Dashboard from "./pages/Dashboard";
 import Jobs from "./pages/Jobs";
 import JobDetail from "./pages/JobDetail";
 import Candidates from "./pages/Candidates";
+import CandidateDetail from "./pages/CandidateDetail";
 import AdminFreelanceQueue from "./pages/AdminFreelanceQueue";
 import OrgRecruiters from "./pages/OrgRecruiters";
 import Login from "./pages/Login";
@@ -53,6 +54,16 @@ export default function App() {
           <ProtectedRoute>
             <AppShell>
               <Candidates />
+            </AppShell>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/candidates/:candidateId"
+        element={
+          <ProtectedRoute>
+            <AppShell>
+              <CandidateDetail />
             </AppShell>
           </ProtectedRoute>
         }
