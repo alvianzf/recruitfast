@@ -264,20 +264,30 @@ not be able to bypass it).
 entirely, and `FORCE ROW LEVEL SECURITY` (applied to every table above)
 does not change that — it only forces the *table owner* to respect RLS if
 the owner isn't a superuser. **The API must connect as a non-superuser
-role**, or every guarantee in this section is silently void. Local dev is
-currently configured to connect as `postgres`, which on a standard local
-install is a superuser — this needs to change before RLS can be
-considered actually enforced, even in dev:
+role**, or every guarantee in this section is silently void.
+
+This local dev environment has this applied: a `recruitfast_app` login
+role (not a superuser) owns the `recruitfast` database and its `public`
+schema, `backend/.env`'s `DATABASE_URL` connects as that role, and
+isolation was functionally verified — a session scoped to one tenant sees
+only its own rows, a session scoped to a different tenant sees none of
+them, and a session with `app.role = 'superadmin'` sees none of them
+regardless of `app.tenant_id`. For a fresh environment, reproduce with:
 
 ```sql
--- Run once, as postgres, against the recruitfast database:
+-- Run once, as postgres, against a fresh recruitfast database:
 CREATE ROLE recruitfast_app LOGIN PASSWORD '<pick-your-own-local-password>';
-GRANT ALL ON ALL TABLES IN SCHEMA public TO recruitfast_app;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO recruitfast_app;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO recruitfast_app;
+-- Easiest path: have postgres create the DB owned by the new role, then
+-- hand it the schema too, and run `alembic upgrade head` as that role so
+-- it owns every object from the start (no ALTER-ownership gymnastics
+-- later):
+--   CREATE DATABASE recruitfast OWNER recruitfast_app;
+--   \c recruitfast
+--   ALTER SCHEMA public OWNER TO recruitfast_app;
 ```
 
 Then point `DATABASE_URL` in `backend/.env` at `recruitfast_app`, not
-`postgres`. This is left as a manual step (not scripted into a migration)
-specifically so no real password ever gets hardcoded into source — see
-the credential-handling note in [07-tech-stack.md](07-tech-stack.md).
+`postgres`, before running migrations. This is left as a manual step (not
+scripted into a migration) specifically so no real password ever gets
+hardcoded into source — see the credential-handling note in
+[07-tech-stack.md](07-tech-stack.md).
