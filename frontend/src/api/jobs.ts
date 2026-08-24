@@ -25,6 +25,14 @@ export function useJobs() {
   });
 }
 
+export function useJob(jobId: string) {
+  return useQuery({
+    queryKey: ["job", jobId],
+    queryFn: async () => (await api.get<Job>(`/jobs/${jobId}`)).data,
+    enabled: !!jobId,
+  });
+}
+
 export function useCreateJob() {
   const queryClient = useQueryClient();
   return useMutation({

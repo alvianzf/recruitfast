@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import CurrentUser, get_current_user, get_db
@@ -19,6 +19,22 @@ def list_jobs(
     # RLS restricts rows to current_user's tenant; the explicit filter
     # below is defense-in-depth, not the only guard. See docs/02.
     return db.query(Job).filter(Job.tenant_id == current_user.tenant_id, Job.deleted_at.is_(None)).all()
+
+
+@router.get("/{job_id}", response_model=JobOut)
+def get_job(
+    job_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> Job:
+    job = (
+        db.query(Job)
+        .filter(Job.id == job_id, Job.tenant_id == current_user.tenant_id, Job.deleted_at.is_(None))
+        .first()
+    )
+    if job is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Job not found")
+    return job
 
 
 @router.post("", response_model=JobOut, status_code=201)
