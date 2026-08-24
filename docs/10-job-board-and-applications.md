@@ -60,6 +60,15 @@ presentable and memorable.
   file if attached. No candidate, pipeline, or recruiter-identity data is
   ever on this surface.
 - Each job has an **Apply** button opening the application flow below.
+- Each job card/detail shows an **applicant counter** — *"{N} people
+  applied"* — a `COUNT(job_applications)` for that job, public and
+  visible without applying. This is social proof for the candidate side,
+  not a recruiter metric; it counts every application regardless of
+  eligibility (an applicant who didn't pass screening still applied).
+  Cheap to compute on read (no caching needed at this scale) — recompute
+  per page view rather than maintaining a denormalized counter column,
+  since correctness (an accurate count) matters more here than shaving a
+  query on a low-traffic public page.
 - A board for an unknown slug is a plain 404, not an error — indistinguishable
   from a slug that was never issued (doesn't leak which slugs are valid).
 
@@ -228,8 +237,8 @@ worth being explicit about exactly how narrow it is.
 ## API endpoints
 
 **Public (no auth):**
-- `GET /public/boards/{slug}` — org board by slug; `GET /public/boards/freelance` — the fixed freelance board.
-- `GET /public/jobs/{job_id}` — single job detail + its screening questions (for rendering the apply form).
+- `GET /public/boards/{slug}` — org board by slug; `GET /public/boards/freelance` — the fixed freelance board. Each job in the list includes `applicant_count`.
+- `GET /public/jobs/{job_id}` — single job detail + its screening questions (for rendering the apply form) + `applicant_count`.
 - `POST /public/jobs/{job_id}/apply` — multipart (CV file + form fields + answers). Creates the candidate/application, computes eligibility, creates the placement if eligible.
 
 **Authenticated (recruiter/org_admin):**
