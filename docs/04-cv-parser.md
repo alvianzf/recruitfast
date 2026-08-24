@@ -30,11 +30,16 @@ as a P0 component.
 ## Architecture
 
 ```
-Upload (PDF/DOCX/image)
+Upload (PDF/DOC/DOCX/image)
    │
    ▼
 1. Text extraction ─── pdfplumber / PyMuPDF for text PDFs
-   │                    docx2txt for Word
+   │                    docx2txt / python-docx for .docx (OOXML)
+   │                    LibreOffice headless (soffice --convert-to) for
+   │                    legacy .doc (binary format) → convert to .docx/
+   │                    text first, then reuse the .docx path. .doc has
+   │                    no good pure-Python parser; this is the one format
+   │                    in scope that needs an external process.
    │                    Tesseract OCR fallback for scanned/image PDFs
    ▼
 2. Structured extraction (deterministic, no model)
@@ -59,6 +64,100 @@ Upload (PDF/DOCX/image)
    → parse_status = 'confirmed' if all fields ≥ threshold,
      else 'needs_review'
 ```
+
+## Parsed field schema (`candidate_documents.parsed_fields`)
+
+This is the canonical shape every parse produces, regardless of source
+format (PDF/DOC/DOCX) — the JSON stored in `parsed_fields` (jsonb). Shown
+here as an example rather than an abstract schema because the shape only
+really reads clearly with real data:
+
+```json
+{
+  "name": "Ilham Dimas Hidayat",
+  "position": "DevOps Engineer",
+  "summary": [
+    "DevOps Engineer with experience in cloud and on-premises infrastructure administration, containerization, orchestration, CI/CD automation, GitOps, and Infrastructure as Code.",
+    "Experienced managing Kubernetes clusters, Docker-based environments, Linux servers, and hybrid infrastructure across enterprise environments."
+  ],
+  "total_years_experience": "7",
+  "technical_skills": {
+    "programming_languages_and_frameworks": [
+      { "name": "Bash", "years_of_experience": "7", "last_used": "2026" },
+      { "name": "Python", "years_of_experience": "3", "last_used": "2026" }
+    ],
+    "databases": [
+      { "name": "PostgreSQL", "years_of_experience": "7", "last_used": "2026" }
+    ],
+    "ai_tools": [],
+    "others": [
+      { "name": "Kubernetes", "years_of_experience": "7", "last_used": "2026" },
+      { "name": "Terraform", "years_of_experience": "4", "last_used": "2026" }
+    ]
+  },
+  "education": [
+    { "institution": "SMKN 1 Cimahi", "major": "Computer and Network Engineering", "year": "2015 - 2019" }
+  ],
+  "certifications": [
+    { "name": "Ultimate AWS Certified Cloud Practitioner CLF-C02", "issuer": "Udemy", "year_issued": "2023" }
+  ],
+  "main_projects": [
+    {
+      "project_title": "Infrastructure Automation and Multi-Cluster Platform",
+      "company_name": "Bobobox",
+      "location": "Indonesia",
+      "language": "English, Indonesian",
+      "position": "DevOps Engineer",
+      "duration": "09/2025 - Present",
+      "duration_length": "0 years 9 months",
+      "team_description": "Collaborated with developers and infrastructure stakeholders across multiple clusters and environments.",
+      "project_description": "Managed cloud and on-premises infrastructure modernization, GitOps adoption, security enhancement, service mesh deployment, and platform automation initiatives.",
+      "responsibilities": [
+        "Optimized resource allocation, preventing underutilized usage to ensure the optimum cost-efficiency yet still reliable for request handling by automated scalability.",
+        "Managed CI/CD workflows using GitHub Actions and ArgoCD, enhancing the delivery and deployment process, speed and consistency through cross cluster."
+      ],
+      "technologies_used": ["GCP", "Kubernetes", "Docker", "OpenTofu", "GitHub Actions", "ArgoCD"]
+    }
+  ]
+}
+```
+
+**Field notes:**
+
+| Field | Extraction method | Notes |
+|---|---|---|
+| `name` | Structured (regex/NER) | |
+| `position` | Semantic (SLM) | The candidate's current/most recent or target role — distinct from `main_projects[].position`, which is the role held *during that specific engagement* (can differ, e.g. a promotion mid-tenure). |
+| `summary` | Semantic (SLM) | Array of bullet strings, not one paragraph — mirrors how resumes actually present a summary and is easier to review/edit field-by-field than a wall of text. |
+| `total_years_experience` | Semantic (SLM, computed) | Stored as a string to match how it's displayed, not used arithmetically — don't rely on it for numeric sorting without a parse-time numeric cast. |
+| `technical_skills.*` | Semantic (SLM) | Four fixed categories (`programming_languages_and_frameworks`, `databases`, `ai_tools`, `others`) rather than a flat list — this is what makes the skills section scannable and filterable later. Empty categories stay as `[]`, never omitted, so the frontend can render a stable set of sections. Each skill entry (`name`, `years_of_experience`, `last_used`) is independently reviewable. |
+| `education[]` | Semantic (SLM) | `institution`, `major`, `year` (year is the raw range string as written, e.g. `"2015 - 2019"` — not split into start/end at parse time). |
+| `certifications[]` | Semantic (SLM) | `name`, `issuer`, `year_issued`. |
+| `main_projects[]` | Semantic (SLM) | The richest section — one entry per role/engagement, each with its own `responsibilities[]` and `technologies_used[]`. This is what backs the candidate's work-history timeline in the UI, not a separate `experience` field. |
+
+**Confidence granularity** matches how a recruiter would actually review
+the document, not one score for the whole file:
+
+- Scalar top-level fields (`name`, `position`, `total_years_experience`)
+  each get one confidence score.
+- Array sections (`technical_skills.*`, `education`, `certifications`,
+  `main_projects`) get **one confidence score per array item** — e.g. one
+  low-confidence project in a five-project history flags only that
+  project's card for review, not the whole document. `parse_confidence`
+  mirrors `parsed_fields`'s shape (same keys, same array indices) so the
+  two can be zipped together directly when rendering.
+
+**Denormalization note:** `position` and `total_years_experience` are
+useful in list/table views (Candidates table, search) without parsing
+JSONB on every row — worth copying onto `candidates.current_position` /
+`candidates.total_years_experience` as convenience columns kept in sync
+from the *current* `candidate_documents` version, the same way `full_name`
+already lives on `candidates` rather than only in parsed data. Full
+skills/education/certifications/project search (e.g. "find candidates
+with Kubernetes experience") needs proper normalization — that's the
+existing P1 "global talent-pool search & tagging" gap in
+[08-open-questions-and-gaps.md](08-open-questions-and-gaps.md), not solved
+by the JSONB blob alone.
 
 ## Confidence & human review
 
@@ -111,3 +210,12 @@ or the pipeline is improved, a recruiter can trigger "Re-parse" from the ⋮
 menu — this creates a new parse pass over the same stored file without
 requiring a re-upload, and the recruiter's manual corrections on the
 current version are preserved as a diff, not overwritten silently.
+
+## Upload entry points
+
+CV upload (single file or a batch of many, one candidate per file) and
+CSV/Excel bulk import are the two ways candidates enter the system besides
+manual entry. Both are modal-based, drop-zone-first flows with a mandatory
+preview-before-commit step — full UX spec, including the bulk import
+template and validation model, is in
+[09-candidate-intake.md](09-candidate-intake.md).
