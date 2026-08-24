@@ -19,6 +19,8 @@ import PeopleOutlinedIcon from "@mui/icons-material/PeopleOutlined";
 import PeopleIcon from "@mui/icons-material/People";
 import HowToRegOutlinedIcon from "@mui/icons-material/HowToRegOutlined";
 import HowToRegIcon from "@mui/icons-material/HowToReg";
+import BadgeOutlinedIcon from "@mui/icons-material/BadgeOutlined";
+import BadgeIcon from "@mui/icons-material/Badge";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { Link as RouterLink, useLocation } from "react-router-dom";
 
@@ -29,6 +31,11 @@ const RECRUITER_NAV_ITEMS = [
   { label: "Dashboard", path: "/", icon: DashboardOutlinedIcon, activeIcon: DashboardIcon },
   { label: "Jobs", path: "/jobs", icon: WorkOutlinedIcon, activeIcon: WorkIcon },
   { label: "Candidates", path: "/candidates", icon: PeopleOutlinedIcon, activeIcon: PeopleIcon },
+];
+
+const ORG_ADMIN_NAV_ITEMS = [
+  ...RECRUITER_NAV_ITEMS,
+  { label: "Recruiters", path: "/org/recruiters", icon: BadgeOutlinedIcon, activeIcon: BadgeIcon },
 ];
 
 // Superadmin has no navigation path into job/candidate content at all —
@@ -51,7 +58,12 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
   const { user, logout } = useAuth();
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
-  const navItems = user?.role === "superadmin" ? SUPERADMIN_NAV_ITEMS : RECRUITER_NAV_ITEMS;
+  const navItems =
+    user?.role === "superadmin"
+      ? SUPERADMIN_NAV_ITEMS
+      : user?.role === "org_admin"
+        ? ORG_ADMIN_NAV_ITEMS
+        : RECRUITER_NAV_ITEMS;
 
   return (
     <Box sx={{ display: "flex", minHeight: "100vh" }}>

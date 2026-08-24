@@ -8,6 +8,7 @@ import Jobs from "./pages/Jobs";
 import JobDetail from "./pages/JobDetail";
 import Candidates from "./pages/Candidates";
 import AdminFreelanceQueue from "./pages/AdminFreelanceQueue";
+import OrgRecruiters from "./pages/OrgRecruiters";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 
@@ -63,6 +64,18 @@ export default function App() {
             <RoleRoute roles={["superadmin"]}>
               <AppShell>
                 <AdminFreelanceQueue />
+              </AppShell>
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/org/recruiters"
+        element={
+          <ProtectedRoute>
+            <RoleRoute roles={["org_admin"]}>
+              <AppShell>
+                <OrgRecruiters />
               </AppShell>
             </RoleRoute>
           </ProtectedRoute>
