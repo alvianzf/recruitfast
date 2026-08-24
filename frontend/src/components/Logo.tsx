@@ -1,24 +1,30 @@
 import { Box, Stack, Typography } from "@mui/material";
 
 export default function Logo({ compact = false }: { compact?: boolean }) {
+  const size = compact ? 32 : 40;
+
   return (
     <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
       <Box
         sx={{
-          width: compact ? 28 : 36,
-          height: compact ? 28 : 36,
+          width: size,
+          height: size,
           borderRadius: "10px",
-          background: "linear-gradient(135deg, #990000 0%, #ff7a59 100%)",
+          bgcolor: "#ffffff",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           flexShrink: 0,
-          boxShadow: "0 4px 14px -4px rgba(153, 0, 0, 0.6)",
+          p: 0.5,
+          boxShadow: "0 4px 14px -4px rgba(153, 0, 0, 0.5)",
         }}
       >
-        <Typography sx={{ color: "#fff", fontWeight: 800, fontSize: compact ? 14 : 17, lineHeight: 1 }}>
-          R
-        </Typography>
+        <Box
+          component="img"
+          src="/icon-mark.png"
+          alt="RecruitFast"
+          sx={{ width: "100%", height: "100%", objectFit: "contain" }}
+        />
       </Box>
       <Typography variant={compact ? "subtitle1" : "h5"} sx={{ fontWeight: 800, letterSpacing: -0.5 }}>
         RecruitFast
