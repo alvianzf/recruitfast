@@ -7,7 +7,9 @@ from app.api.deps import CurrentUser, get_current_user, get_db
 from app.models.candidate import Candidate, CandidateDocument, ParseStatus
 from app.models.document import Document
 from app.schemas.candidate import (
+    CandidateDetailOut,
     CandidateOut,
+    CurrentDocumentOut,
     CVCommitRequest,
     CVCommitResponse,
     CVPreviewItem,
@@ -34,6 +36,40 @@ def list_candidates(
         .order_by(Candidate.created_at.desc())
         .all()
     )
+
+
+@router.get("/{candidate_id}", response_model=CandidateDetailOut)
+def get_candidate(
+    candidate_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> CandidateDetailOut:
+    candidate = (
+        db.query(Candidate)
+        .filter(Candidate.id == candidate_id, Candidate.tenant_id == current_user.tenant_id, Candidate.deleted_at.is_(None))
+        .first()
+    )
+    if candidate is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Candidate not found")
+
+    current_doc = (
+        db.query(CandidateDocument, Document)
+        .join(Document, Document.id == CandidateDocument.file_id)
+        .filter(CandidateDocument.candidate_id == candidate_id, CandidateDocument.is_current.is_(True))
+        .order_by(CandidateDocument.version_no.desc())
+        .first()
+    )
+
+    detail = CandidateDetailOut.model_validate(candidate)
+    if current_doc:
+        cd, doc = current_doc
+        detail.current_document = CurrentDocumentOut(
+            original_filename=doc.original_filename,
+            parsed_fields=cd.parsed_fields,
+            parse_confidence=cd.parse_confidence,
+            parse_status=cd.parse_status.value,
+        )
+    return detail
 
 
 @router.post("/cv/parse-preview", response_model=CVPreviewResponse)

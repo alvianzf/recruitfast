@@ -17,6 +17,17 @@ class CandidateOut(BaseModel):
     blacklisted: bool
 
 
+class CurrentDocumentOut(BaseModel):
+    original_filename: str
+    parsed_fields: dict[str, Any]
+    parse_confidence: dict[str, Any]
+    parse_status: str
+
+
+class CandidateDetailOut(CandidateOut):
+    current_document: CurrentDocumentOut | None = None
+
+
 class PossibleDuplicate(BaseModel):
     candidate_id: uuid.UUID
     full_name: str
