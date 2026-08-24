@@ -42,6 +42,30 @@ export interface CVCommitItem {
   parse_confidence?: Record<string, unknown> | null;
 }
 
+export interface CandidateDetail extends Candidate {
+  current_document: {
+    original_filename: string;
+    parsed_fields: {
+      summary?: string[];
+      technical_skills?: Record<string, { name: string; years_of_experience: string; last_used: string }[]>;
+      education?: { institution: string; major: string | null; year: string }[];
+      certifications?: { name: string; issuer: string; year_issued: string }[];
+      main_projects?: {
+        project_title: string;
+        company_name: string | null;
+        duration: string | null;
+        position: string | null;
+        team_description: string | null;
+        project_description: string | null;
+        responsibilities: string[];
+        technologies_used: string[];
+      }[];
+    };
+    parse_confidence: Record<string, unknown>;
+    parse_status: string;
+  } | null;
+}
+
 export function useCandidates() {
   return useQuery({
     queryKey: ["candidates"],
@@ -49,6 +73,14 @@ export function useCandidates() {
       const { data } = await api.get<Candidate[]>("/candidates");
       return data;
     },
+  });
+}
+
+export function useCandidate(candidateId: string) {
+  return useQuery({
+    queryKey: ["candidate", candidateId],
+    queryFn: async () => (await api.get<CandidateDetail>(`/candidates/${candidateId}`)).data,
+    enabled: !!candidateId,
   });
 }
 
