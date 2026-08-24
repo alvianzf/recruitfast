@@ -52,7 +52,7 @@ migrations once implementation starts for exact constraints/indexes.
 | description | text (rich text / markdown) | |
 | jd_file_id | uuid FK → `documents`, nullable | uploaded JD file |
 | custom_fields | jsonb | org-defined schema, validated app-side |
-| status | enum(`open`, `on_hold`, `filled`, `cancelled`) | |
+| status | enum(`open`, `on_hold`, `won`, `lost`) | `won`/`lost` — sales-deal framing (closed with a hire vs. fell through), not generic "filled/cancelled". See [03-pipelines-and-boards.md](03-pipelines-and-boards.md). |
 | pipeline_template_id | uuid FK → `pipeline_templates` | template it was cloned from, for reference only |
 
 ### `pipeline_templates`
@@ -245,16 +245,39 @@ picked specifically because the QA review flagged that UI-level hiding is
 not sufficient (a direct API call, an export job, or a backup restore must
 not be able to bypass it).
 
-- Implemented (see `backend/alembic/versions/0002_row_level_security.py`):
+- Implemented (see `backend/alembic/versions/0002_row_level_security.py`,
+  amended by `0009_nullif_safe_rls_policies.py` — see gotcha below):
   every RLS-scoped table (`jobs`, `candidates`, `job_stages`,
   `pipeline_placements`, `stage_history`, `notes`, `candidate_documents`,
-  `documents`) gets one policy: `current_setting('app.role', true) IS
-  DISTINCT FROM 'superadmin' AND tenant_id = current_setting('app.tenant_id',
-  true)::uuid`. The API connects as a single DB role and sets
-  `app.role`/`app.tenant_id` per request via `SET LOCAL`
+  `documents`, `job_screening_questions`, `job_applications`) gets one
+  policy: `current_setting('app.role', true) IS DISTINCT FROM 'superadmin'
+  AND tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid`.
+  The API connects as a single DB role and sets `app.role`/`app.tenant_id`
+  per request via `set_config(..., true)`
   (`app/core/database.py: set_rls_context`) — a session with
   `app.role = 'superadmin'` matches no row, on any of these tables,
-  independent of application code.
+  independent of application code. `jobs` additionally has a second,
+  narrower permissive policy (`public_open_jobs`,
+  `0008_public_jobs_read_policy.py`) allowing SELECT on `status = 'open'`
+  rows with no session context at all — the public job board's only RLS
+  exception outside the `candidates.open_to_other_roles` one below. See
+  [10-job-board-and-applications.md](10-job-board-and-applications.md).
+
+  **Gotcha that cost real debugging time, worth knowing before touching
+  this again:** a custom Postgres GUC like `app.tenant_id` is lazily
+  created as a "placeholder" the first time any session sets it on a
+  given physical connection. After that point, `current_setting(x, true)`
+  returns `''` (empty string) for an unset value **on that connection**,
+  not `NULL` — for the rest of that connection's lifetime, even across
+  transactions and even after the setting transaction commits or rolls
+  back. Since the app uses a connection pool, this isn't a one-off: any
+  request that reuses a connection another request already touched will
+  see `''`, not `NULL`, if it never calls `set_rls_context` (e.g. the
+  public job board's pre-tenant-known lookups). A bare
+  `tenant_id = current_setting(...)::uuid` cast then hard-errors
+  (`invalid input syntax for type uuid: ""`) instead of safely matching
+  zero rows. `NULLIF(..., '')` before the cast fixes it for both NULL and
+  `''`. Don't reintroduce a bare cast in a future policy.
 - `assisted_access_requests`, once `approved` and unexpired, will grant a
   narrowly-scoped, time-limited additional policy for that one
   `resource_id` — **not yet implemented**; today Assisted Access has a

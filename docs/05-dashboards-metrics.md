@@ -38,7 +38,7 @@ for the shared library/styling decisions.
 
 1. **Org-wide avg time-to-fill, trended** *(line chart, monthly)* — health
    of the whole shop over time, not a single point-in-time number.
-2. **Jobs by status breakdown** *(donut chart: open/on-hold/filled/cancelled)*
+2. **Jobs by status breakdown** *(donut chart: open/on-hold/won/lost)*
    — portfolio view at a glance.
 3. **Recruiter workload** *(horizontal bar chart, one bar per recruiter)* —
    load-balancing signal, feeds the reassignment flow in

@@ -18,6 +18,18 @@ interview.
 stage, not only the end of the line — a candidate can be rejected straight
 out of `Sourced`.
 
+**Job-level outcome vs. candidate-level stage** — don't confuse the two:
+`Offer` above is a *candidate placement* stage (this specific candidate
+has an offer). The *job* itself has its own terminal outcome —
+`jobs.status = won` (the requisition was successfully closed with a hire)
+or `lost` (fell through — client cancelled, lost to a competing agency,
+etc.) — see [02-data-model.md](02-data-model.md#jobs). A job can have one
+candidate with an `Offer`-stage placement while the job itself is still
+`open`; the job only becomes `won` once that hire is confirmed, and
+`filled`/`cancelled` as status names are retired in favor of `won`/`lost`
+— sales-deal framing fits a recruitment agency's jobs better than generic
+lifecycle terms.
+
 ## Clone-on-create, not live-linked
 
 A job's pipeline (`job_stages`) is an independent copy taken from the
