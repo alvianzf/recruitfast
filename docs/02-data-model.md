@@ -102,6 +102,8 @@ job so one candidate can sit in multiple pipelines.
 | email | citext | indexed, used for dedup matching |
 | phone | text | normalized (E.164), indexed |
 | source | text | how they entered (upload, manual, referral) |
+| current_position | text, nullable | denormalized from the current `candidate_documents.parsed_fields.position`, kept in sync on parse/edit — avoids parsing JSONB on every list/table row. See [04-cv-parser.md](04-cv-parser.md#parsed-field-schema-candidate_documentsparsed_fields). |
+| total_years_experience | text, nullable | same denormalization rationale as `current_position` |
 | blacklisted | bool default false | org-wide "Do Not Contact" flag — see below |
 | blacklist_reason | text, nullable | required when blacklisted=true |
 | dedup_fingerprint | text | hash of normalized email+phone+name, indexed, used for the duplicate-candidate prompt |
@@ -120,8 +122,8 @@ twice for the same role: show both CVs in one row."
 | file_id | uuid FK → `documents` | the stored file |
 | version_no | int | auto-incremented per candidate |
 | is_current | bool | exactly one `true` per (candidate_id, job_id) pair — the version shown by default |
-| parsed_fields | jsonb | structured CV Parser output for *this* document |
-| parse_confidence | jsonb | per-field confidence scores, see [04-cv-parser.md](04-cv-parser.md) |
+| parsed_fields | jsonb | structured CV Parser output for *this* document — canonical shape (name, position, summary, total_years_experience, technical_skills, education, certifications, main_projects) documented in [04-cv-parser.md](04-cv-parser.md#parsed-field-schema-candidate_documentsparsed_fields) |
+| parse_confidence | jsonb | per-field confidence scores, same shape as `parsed_fields` (array items scored individually), see [04-cv-parser.md](04-cv-parser.md#parsed-field-schema-candidate_documentsparsed_fields) |
 | parse_status | enum(`pending`, `needs_review`, `confirmed`, `failed`) | |
 | uploaded_by | uuid FK → users | |
 | uploaded_at | timestamptz | |
