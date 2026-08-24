@@ -29,6 +29,17 @@ class OrgMetrics(BaseModel):
     jobs_open_30_60_90: dict[str, int]
 
 
+class RecruiterPerformancePoint(BaseModel):
+    recruiter_id: str
+    recruiter_name: str
+    team_name: str | None
+    open_jobs: int
+    active_candidates: int
+    offers: int
+    won_jobs: int
+    lost_jobs: int
+
+
 class PlatformMetrics(BaseModel):
     active_org_tenants: int
     freelance_org_members: int

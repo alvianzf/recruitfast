@@ -11,6 +11,7 @@ from app.models.candidate import Candidate
 from app.models.job import Job, JobStatus
 from app.models.pipeline import JobStage
 from app.models.placement import PipelinePlacement, PlacementStatus
+from app.models.team import Team
 from app.models.tenant import Tenant, TenantType
 from app.models.user import User, UserRole, UserStatus
 from app.schemas.metrics import (
@@ -18,6 +19,7 @@ from app.schemas.metrics import (
     OrgMetrics,
     PlatformMetrics,
     RecruiterMetrics,
+    RecruiterPerformancePoint,
     RecruiterWorkloadPoint,
     StageFunnelPoint,
 )
@@ -74,23 +76,30 @@ def recruiter_metrics(
 
 @router.get("/org", response_model=OrgMetrics)
 def org_metrics(
+    team_id: uuid.UUID | None = None,
     db: Session = Depends(get_db),
     current_user: CurrentUser = Depends(require_role("org_admin")),
 ) -> OrgMetrics:
-    status_rows = db.query(Job.status, func.count(Job.id)).filter(Job.deleted_at.is_(None)).group_by(Job.status).all()
+    status_q = db.query(Job.status, func.count(Job.id)).filter(Job.deleted_at.is_(None))
+    if team_id is not None:
+        status_q = status_q.join(User, User.id == Job.owner_recruiter_id).filter(User.team_id == team_id)
+    status_rows = status_q.group_by(Job.status).all()
     jobs_by_status = [JobsByStatusPoint(status=s.value, count=c) for s, c in status_rows]
 
-    workload_rows = (
+    workload_q = (
         db.query(User.full_name, func.count(Job.id))
         .join(Job, Job.owner_recruiter_id == User.id)
         .filter(Job.status == JobStatus.open, Job.deleted_at.is_(None))
-        .group_by(User.full_name)
-        .all()
     )
+    if team_id is not None:
+        workload_q = workload_q.filter(User.team_id == team_id)
+    workload_rows = workload_q.group_by(User.full_name).all()
     recruiter_workload = [RecruiterWorkloadPoint(recruiter_name=name, open_jobs=count) for name, count in workload_rows]
 
     now = datetime.now(timezone.utc)
     open_jobs_q = db.query(Job).filter(Job.status == JobStatus.open, Job.deleted_at.is_(None))
+    if team_id is not None:
+        open_jobs_q = open_jobs_q.join(User, User.id == Job.owner_recruiter_id).filter(User.team_id == team_id)
     buckets = {"30-60": 0, "60-90": 0, "90+": 0}
     for job in open_jobs_q.all():
         age_days = (now - job.created_at).days
@@ -102,6 +111,77 @@ def org_metrics(
             buckets["90+"] += 1
 
     return OrgMetrics(jobs_by_status=jobs_by_status, recruiter_workload=recruiter_workload, jobs_open_30_60_90=buckets)
+
+
+@router.get("/org/recruiters", response_model=list[RecruiterPerformancePoint])
+def org_recruiter_performance(
+    team_id: uuid.UUID | None = None,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_role("org_admin")),
+) -> list[RecruiterPerformancePoint]:
+    recruiters_q = db.query(User).filter(
+        User.tenant_id == uuid.UUID(current_user.tenant_id),
+        User.role == UserRole.recruiter,
+        User.deleted_at.is_(None),
+    )
+    if team_id is not None:
+        recruiters_q = recruiters_q.filter(User.team_id == team_id)
+    recruiters = recruiters_q.order_by(User.full_name).all()
+
+    team_names = {t.id: t.name for t in db.query(Team).all()}
+
+    points: list[RecruiterPerformancePoint] = []
+    for recruiter in recruiters:
+        open_jobs = (
+            db.query(func.count(Job.id))
+            .filter(Job.owner_recruiter_id == recruiter.id, Job.status == JobStatus.open, Job.deleted_at.is_(None))
+            .scalar()
+            or 0
+        )
+        won_jobs = (
+            db.query(func.count(Job.id))
+            .filter(Job.owner_recruiter_id == recruiter.id, Job.status == JobStatus.won, Job.deleted_at.is_(None))
+            .scalar()
+            or 0
+        )
+        lost_jobs = (
+            db.query(func.count(Job.id))
+            .filter(Job.owner_recruiter_id == recruiter.id, Job.status == JobStatus.lost, Job.deleted_at.is_(None))
+            .scalar()
+            or 0
+        )
+        active_candidates = (
+            db.query(func.count(PipelinePlacement.id))
+            .join(Job, Job.id == PipelinePlacement.job_id)
+            .filter(Job.owner_recruiter_id == recruiter.id, PipelinePlacement.status == PlacementStatus.active)
+            .scalar()
+            or 0
+        )
+        offers = (
+            db.query(func.count(PipelinePlacement.id))
+            .join(JobStage, JobStage.id == PipelinePlacement.current_stage_id)
+            .join(Job, Job.id == PipelinePlacement.job_id)
+            .filter(
+                Job.owner_recruiter_id == recruiter.id,
+                JobStage.is_terminal_success.is_(True),
+                PipelinePlacement.status == PlacementStatus.active,
+            )
+            .scalar()
+            or 0
+        )
+        points.append(
+            RecruiterPerformancePoint(
+                recruiter_id=str(recruiter.id),
+                recruiter_name=recruiter.full_name,
+                team_name=team_names.get(recruiter.team_id) if recruiter.team_id else None,
+                open_jobs=open_jobs,
+                active_candidates=active_candidates,
+                offers=offers,
+                won_jobs=won_jobs,
+                lost_jobs=lost_jobs,
+            )
+        )
+    return points
 
 
 @router.get("/platform", response_model=PlatformMetrics)
