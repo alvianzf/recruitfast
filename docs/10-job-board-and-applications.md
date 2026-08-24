@@ -45,15 +45,29 @@ presentable and memorable.
   rather than a numeric counter — avoids leaking "which org signed up
   first" and never needs a retry loop past one collision in practice.
 - The Freelance Org does **not** get a generated slug — its board is the
-  fixed, single route `{base_url}/jobs/public`, since there's exactly one
-  Freelance Org tenant platform-wide (docs/02) and every freelance
+  fixed, single route `{base_url}/careers/public`, since there's exactly
+  one Freelance Org tenant platform-wide (docs/02) and every freelance
   recruiter's jobs share it.
 - Slugs are immutable once assigned in this pass — renaming an org and
   keeping old links alive (redirects) is a P1 concern, not built now.
 
+**Frontend URL deviation from the original ask:** the public-facing pages
+live at `{base_url}/careers/{slug}` and `{base_url}/careers/public`, not
+`/jobs/{slug}` — the SPA's `/jobs` path is already the authenticated
+recruiter's Jobs list, and `/jobs/{slug}` would collide with the existing
+`/jobs/{jobId}` detail route at the router level. `/careers/...` is also
+the more conventional pattern for a public job board (Greenhouse, Lever,
+etc. all use a `/careers`-style prefix), so it's a reasonable substitution
+rather than a compromise. The backend API paths are unaffected
+(`/public/boards/{slug}`, `/public/jobs/{job_id}`, etc., below) — only the
+frontend route prefix changed. The application/detail page itself is
+`{base_url}/apply/{job_id}` (job IDs are globally unique, so the slug
+isn't needed in that URL) — this is also what "Copy application link"
+copies, not the raw API URL.
+
 ## Job board pages (public, no auth)
 
-- `GET /jobs/{slug}` (Org board) and the fixed Freelance board: lists
+- `GET /public/boards/{slug}` (Org board) and the fixed Freelance board: lists
   that tenant's `open`-status jobs — title, overview, description, JD
   file if attached. No candidate, pipeline, or recruiter-identity data is
   ever on this surface.
@@ -86,7 +100,7 @@ presentable and memorable.
   closed, same as a public one.
 - **Copy link**: every job (public or unlisted) has a "Copy application
   link" action — on the Jobs list row's ⋮ menu and on the Job Detail
-  page — that copies `{base_url}/public/jobs/{job_id}` to the clipboard.
+  page — that copies `{base_url}/apply/{job_id}` to the clipboard.
   This is *the* distribution mechanism for unlisted jobs (send the link
   directly to candidates/a specific channel) and a convenience for public
   ones (share the direct link instead of pointing someone at the whole
