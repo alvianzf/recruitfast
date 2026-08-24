@@ -82,6 +82,7 @@ afterward (unless an Admin explicitly runs "reset to template").
 | column | type | notes |
 |---|---|---|
 | id | uuid PK | |
+| tenant_id | uuid FK | denormalized from `jobs.tenant_id` so RLS can filter this table directly |
 | job_id | uuid FK | |
 | name | text | editable per job |
 | position | int | reorderable per job |
@@ -112,6 +113,7 @@ twice for the same role: show both CVs in one row."
 | column | type | notes |
 |---|---|---|
 | id | uuid PK | |
+| tenant_id | uuid FK | denormalized from `candidates.tenant_id` for direct RLS filtering |
 | candidate_id | uuid FK | |
 | job_id | uuid FK, nullable | the job this specific upload was submitted against, if any |
 | file_id | uuid FK → `documents` | the stored file |
@@ -144,6 +146,7 @@ independently trackable across multiple jobs.
 | column | type | notes |
 |---|---|---|
 | id | uuid PK | |
+| tenant_id | uuid FK | denormalized from `jobs.tenant_id` for direct RLS filtering |
 | candidate_id | uuid FK | |
 | job_id | uuid FK | |
 | current_stage_id | uuid FK → `job_stages` | |
@@ -160,6 +163,7 @@ at write time.
 | column | type | notes |
 |---|---|---|
 | id | uuid PK | |
+| tenant_id | uuid FK | denormalized for direct RLS filtering |
 | placement_id | uuid FK → pipeline_placements | |
 | from_stage_id | uuid FK, nullable | |
 | to_stage_id | uuid FK | |
@@ -172,6 +176,7 @@ at write time.
 | column | type | notes |
 |---|---|---|
 | id | uuid PK | |
+| tenant_id | uuid FK | direct RLS filtering |
 | candidate_id | uuid FK, nullable | |
 | job_id | uuid FK, nullable | |
 | author_id | uuid FK → users | |
