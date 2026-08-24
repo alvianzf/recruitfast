@@ -111,19 +111,24 @@ the shape, and fill in their own data rather than guess column names.
 2. On drop, the file is sent to a **preview endpoint** that parses and
    validates it **without writing anything** (see
    [API](#api-endpoints)), returning every row with a per-row status.
-3. **Column mapping step**, shown first if headers don't exactly match the
-   template: each detected column gets a dropdown to map it to a
-   candidate field (or "Ignore this column"). Exact template headers
-   auto-map with nothing for the recruiter to do; this step only appears
-   when mapping is ambiguous, so the common case (recruiter used the
-   downloaded template) skips straight to the preview table.
-4. **Preview table** (scrollable, virtualized for large files): one row
-   per spreadsheet row, columns = mapped candidate fields, plus a status
-   column:
+3. **Column detection**: headers are matched case/whitespace-insensitively
+   against the six known template columns; an unrecognized column is
+   simply not imported rather than blocking the file. **Simplification
+   vs. the original spec**: an interactive per-column remapping dropdown
+   (for headers that don't match at all) isn't built in this pass — auto-
+   detection covers the case where the recruiter used the downloaded
+   template or a close variant, which is the common case; a full manual
+   remapping UI is deferred until real usage shows it's needed.
+4. **Preview table** (scrollable): one row per spreadsheet row, columns =
+   mapped candidate fields, plus a status column:
    - ✅ **Valid** — will be created as-is.
    - ⚠️ **Warning** — importable but incomplete (e.g. missing phone) or a
-     likely duplicate (same choice set as the CV flow: create new / attach
-     to existing / skip).
+     likely duplicate. **Simplification vs. the original spec**: the
+     resolution choice here is **create new / skip** (matching the CV
+     upload flow), not create/attach-to-existing/skip — attaching would
+     merge into an existing candidate record, which needs a real merge UI
+     this pass doesn't build; skip is the safe default for a suspected
+     duplicate.
    - ❌ **Error** — blocking (missing required field, malformed email,
      unparseable row) — excluded from the count unless fixed.
    - Every cell is inline-editable in the preview table, so a handful of
@@ -134,10 +139,8 @@ the shape, and fill in their own data rather than guess column names.
    are simply excluded from the import (never silently — the count and
    the rows stay visible) rather than blocking the whole file.
 6. On commit, a `candidate_import_batches` row is created (see
-   [data model](#data-model-addition)) and results in a toast + a
-   post-import summary: created / attached-to-existing / skipped counts,
-   with a link to view the newly created candidates filtered by this
-   import batch.
+   [data model](#data-model-addition)) and results in a toast summary:
+   created / skipped counts.
 
 ### Template contents
 
@@ -169,8 +172,7 @@ with only headers is easy to fill in wrong.
 | original_filename | text | |
 | total_rows | int | |
 | created_count | int | |
-| attached_existing_count | int | rows resolved to an existing candidate rather than creating new |
-| skipped_count | int | error/skipped rows excluded from the import |
+| skipped_count | int | error/skipped/duplicate-flagged rows excluded from the import |
 | status | enum(`processing`, `completed`, `failed`) | |
 | created_at | timestamptz | |
 
@@ -190,8 +192,8 @@ duplicate detection in this flow — no new dedup mechanism.
   Writes nothing.
 - `POST /candidates/import/commit` — takes the (possibly recruiter-edited)
   row set from the preview response plus per-row resolutions (create /
-  attach / skip), writes candidates + the `candidate_import_batches` row
-  in one transaction.
+  skip), writes candidates + the `candidate_import_batches` row in one
+  transaction.
 - `GET /candidates/import/template.csv` and `.../template.xlsx` — streams
   the generated template described above.
 - CV upload reuses the existing per-file parse pipeline
