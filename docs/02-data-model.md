@@ -34,6 +34,7 @@ migrations once implementation starts for exact constraints/indexes.
 | id | uuid PK | |
 | tenant_id | uuid FK → tenants, nullable | null only for `superadmin` |
 | role | enum(`superadmin`, `org_admin`, `recruiter`) | |
+| full_name | text | |
 | email | citext unique | |
 | password_hash | text | |
 | status | enum(`pending_approval`, `active`, `deactivated`) | freelance recruiters start `pending_approval` |
