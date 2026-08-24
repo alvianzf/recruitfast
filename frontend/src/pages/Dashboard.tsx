@@ -1,4 +1,20 @@
-import { Grid, Paper, Stack, Typography } from "@mui/material";
+import { useState } from "react";
+import {
+  FormControl,
+  Grid,
+  InputLabel,
+  MenuItem,
+  Paper,
+  Select,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Typography,
+} from "@mui/material";
 import { BarChart, PieChart } from "@mui/x-charts";
 import WorkOutlinedIcon from "@mui/icons-material/WorkOutlined";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
@@ -8,7 +24,8 @@ import ApartmentOutlinedIcon from "@mui/icons-material/ApartmentOutlined";
 import BadgeOutlinedIcon from "@mui/icons-material/BadgeOutlined";
 
 import { useAuth } from "../auth/AuthContext";
-import { useOrgMetrics, usePlatformMetrics, useRecruiterMetrics } from "../api/metrics";
+import { useOrgMetrics, usePlatformMetrics, useRecruiterMetrics, useRecruiterPerformance } from "../api/metrics";
+import { useTeams } from "../api/teams";
 import StatTile from "../components/StatTile";
 import { BRAND_PRIMARY } from "../theme";
 
@@ -55,10 +72,32 @@ function RecruiterDashboard() {
 }
 
 function OrgAdminDashboard() {
-  const { data } = useOrgMetrics(true);
+  const [teamId, setTeamId] = useState<string | null>(null);
+  const { data: teams } = useTeams();
+  const { data } = useOrgMetrics(true, teamId);
+  const { data: performance } = useRecruiterPerformance(true, teamId);
 
   return (
     <Stack spacing={3}>
+      <FormControl size="small" sx={{ minWidth: 220, alignSelf: "flex-start" }}>
+        <InputLabel id="team-filter-label">Team</InputLabel>
+        <Select
+          labelId="team-filter-label"
+          label="Team"
+          value={teamId ?? ""}
+          onChange={(e) => setTeamId(e.target.value === "" ? null : e.target.value)}
+        >
+          <MenuItem value="">
+            <em>All teams</em>
+          </MenuItem>
+          {teams?.map((t) => (
+            <MenuItem key={t.id} value={t.id}>
+              {t.name}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+
       <Grid container spacing={2}>
         {Object.entries(data?.jobs_open_30_60_90 ?? {}).map(([bucket, count]) => (
           <Grid key={bucket} size={{ xs: 12, sm: 4 }}>
@@ -108,6 +147,55 @@ function OrgAdminDashboard() {
           </Paper>
         </Grid>
       </Grid>
+
+      <Paper sx={{ p: 3, backdropFilter: "none" }}>
+        <Typography sx={{ fontWeight: 700, mb: 2 }}>Recruiter performance breakdown</Typography>
+        {performance && performance.length > 0 ? (
+          <Stack spacing={3}>
+            <BarChart
+              height={280}
+              xAxis={[{ scaleType: "band", data: performance.map((p) => p.recruiter_name) }]}
+              series={[
+                { data: performance.map((p) => p.won_jobs), label: "Won", color: "#2e7d32" },
+                { data: performance.map((p) => p.lost_jobs), label: "Lost", color: "#c62828" },
+                { data: performance.map((p) => p.active_candidates), label: "Active candidates", color: BRAND_PRIMARY },
+              ]}
+            />
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Recruiter</TableCell>
+                    <TableCell>Team</TableCell>
+                    <TableCell align="right">Open jobs</TableCell>
+                    <TableCell align="right">Active candidates</TableCell>
+                    <TableCell align="right">Offers</TableCell>
+                    <TableCell align="right">Won</TableCell>
+                    <TableCell align="right">Lost</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {performance.map((p) => (
+                    <TableRow key={p.recruiter_id} hover>
+                      <TableCell sx={{ fontWeight: 600 }}>{p.recruiter_name}</TableCell>
+                      <TableCell>{p.team_name ?? "—"}</TableCell>
+                      <TableCell align="right">{p.open_jobs}</TableCell>
+                      <TableCell align="right">{p.active_candidates}</TableCell>
+                      <TableCell align="right">{p.offers}</TableCell>
+                      <TableCell align="right">{p.won_jobs}</TableCell>
+                      <TableCell align="right">{p.lost_jobs}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Stack>
+        ) : (
+          <Typography variant="body2" color="text.secondary">
+            No recruiters yet.
+          </Typography>
+        )}
+      </Paper>
     </Stack>
   );
 }

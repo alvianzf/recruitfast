@@ -15,6 +15,17 @@ export interface OrgMetrics {
   jobs_open_30_60_90: Record<string, number>;
 }
 
+export interface RecruiterPerformancePoint {
+  recruiter_id: string;
+  recruiter_name: string;
+  team_name: string | null;
+  open_jobs: number;
+  active_candidates: number;
+  offers: number;
+  won_jobs: number;
+  lost_jobs: number;
+}
+
 export interface PlatformMetrics {
   active_org_tenants: number;
   freelance_org_members: number;
@@ -29,10 +40,24 @@ export function useRecruiterMetrics() {
   });
 }
 
-export function useOrgMetrics(enabled: boolean) {
+export function useOrgMetrics(enabled: boolean, teamId?: string | null) {
   return useQuery({
-    queryKey: ["metrics", "org"],
-    queryFn: async () => (await api.get<OrgMetrics>("/metrics/org")).data,
+    queryKey: ["metrics", "org", teamId ?? null],
+    queryFn: async () =>
+      (await api.get<OrgMetrics>("/metrics/org", { params: teamId ? { team_id: teamId } : undefined })).data,
+    enabled,
+  });
+}
+
+export function useRecruiterPerformance(enabled: boolean, teamId?: string | null) {
+  return useQuery({
+    queryKey: ["metrics", "org", "recruiters", teamId ?? null],
+    queryFn: async () =>
+      (
+        await api.get<RecruiterPerformancePoint[]>("/metrics/org/recruiters", {
+          params: teamId ? { team_id: teamId } : undefined,
+        })
+      ).data,
     enabled,
   });
 }
