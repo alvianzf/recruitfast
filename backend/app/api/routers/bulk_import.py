@@ -146,10 +146,12 @@ def commit_import(
         fingerprint = compute_fingerprint(full_name=row.full_name, email=row.email, phone=row.phone)
         candidate = Candidate(
             tenant_id=uuid.UUID(current_user.tenant_id),
+            owner_user_id=uuid.UUID(current_user.user_id),
             full_name=row.full_name,
             email=row.email,
             phone=row.phone,
             source=row.source or "csv_import",
+            linkedin_url=row.linkedin_url,
             dedup_fingerprint=fingerprint,
         )
         db.add(candidate)

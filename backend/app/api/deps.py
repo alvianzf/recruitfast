@@ -55,7 +55,7 @@ def get_db(current_user: CurrentUser = Depends(get_current_user)) -> Generator[S
     """
     db = SessionLocal()
     try:
-        set_rls_context(db, tenant_id=current_user.tenant_id, role=current_user.role)
+        set_rls_context(db, tenant_id=current_user.tenant_id, role=current_user.role, user_id=current_user.user_id)
         yield db
         db.commit()
     except Exception:

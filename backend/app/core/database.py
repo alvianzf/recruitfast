@@ -13,12 +13,14 @@ class Base(DeclarativeBase):
     pass
 
 
-def set_rls_context(session: Session, *, tenant_id: str | None, role: str) -> None:
+def set_rls_context(session: Session, *, tenant_id: str | None, role: str, user_id: str | None = None) -> None:
     """Set the Postgres session variables RLS policies key off.
 
     Called once per request after auth, before any tenant-scoped query.
     tenant_id is None for the superadmin role, whose DB policies grant no
-    access to recruiter-content tables regardless of this value.
+    access to recruiter-content tables regardless of this value. user_id
+    backs the Freelance Org's per-recruiter candidate privacy policy (see
+    migration 0012 and docs/02) — every other RLS policy ignores it.
     """
     # `SET LOCAL` is a utility statement and does not accept bind
     # parameters ("SET LOCAL app.role = :role" is a syntax error at the
@@ -28,6 +30,10 @@ def set_rls_context(session: Session, *, tenant_id: str | None, role: str) -> No
     session.execute(
         text("SELECT set_config('app.tenant_id', :tenant_id, true)"),
         {"tenant_id": tenant_id or ""},
+    )
+    session.execute(
+        text("SELECT set_config('app.user_id', :user_id, true)"),
+        {"user_id": user_id or ""},
     )
 
 

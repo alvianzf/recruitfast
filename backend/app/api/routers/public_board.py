@@ -153,10 +153,18 @@ async def apply_to_job(
         if job is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="This job isn't accepting applications")
 
+        # Computed before set_rls_context (users isn't RLS-protected, so
+        # this is safe pre-context) because the candidate this application
+        # creates/updates needs owner_user_id — and, for a Freelance Org
+        # job, app.user_id itself — set to the SAME attributed recruiter,
+        # or the freelance-candidate-privacy policy (migration 0012)
+        # rejects the write. See docs/02.
+        attributed_user_id = _attribution_user_id(db, job)
+
         # Every write from here on happens inside this job's own tenant's
         # RLS scope — a public applicant is, functionally, acting as a
         # "recruiter" of their own application within that one tenant.
-        set_rls_context(db, tenant_id=str(job.tenant_id), role="recruiter")
+        set_rls_context(db, tenant_id=str(job.tenant_id), role="recruiter", user_id=str(attributed_user_id))
 
         try:
             answers_raw = json.loads(answers_json)
@@ -197,7 +205,12 @@ async def apply_to_job(
             .first()
         )
         if candidate is None:
-            candidate = Candidate(tenant_id=job.tenant_id, full_name=full_name, dedup_fingerprint=fingerprint)
+            candidate = Candidate(
+                tenant_id=job.tenant_id,
+                owner_user_id=attributed_user_id,
+                full_name=full_name,
+                dedup_fingerprint=fingerprint,
+            )
             db.add(candidate)
 
         candidate.email = email
@@ -211,8 +224,6 @@ async def apply_to_job(
         if parsed_fields.get("position"):
             candidate.current_position = parsed_fields["position"]
         db.flush()
-
-        attributed_user_id = _attribution_user_id(db, job)
 
         next_version = (
             db.query(func.coalesce(func.max(CandidateDocument.version_no), 0))

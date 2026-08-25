@@ -13,6 +13,10 @@ class Candidate(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
     __tablename__ = "candidates"
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False)
+    # Who created this candidate record. Only enforced for visibility
+    # within the Freelance Org (see migration 0012 / docs/02) — Org
+    # tenants stay fully org-shared regardless of this value.
+    owner_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     full_name: Mapped[str] = mapped_column(String, nullable=False)
     email: Mapped[str | None] = mapped_column(CITEXT, nullable=True, index=True)
     phone: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
