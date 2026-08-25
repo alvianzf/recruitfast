@@ -1,6 +1,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import CurrentUser, get_current_user, get_db
@@ -93,6 +94,40 @@ def get_candidate(
             parse_status=cd.parse_status.value,
         )
     return detail
+
+
+@router.get("/{candidate_id}/cv")
+def download_candidate_cv(
+    candidate_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> FileResponse:
+    # Two-segment path, so this can't collide with GET /{candidate_id}
+    # regardless of route registration order — see docs/02's route-
+    # ordering gotcha, which only applies to same-depth paths.
+    candidate = (
+        db.query(Candidate)
+        .filter(Candidate.id == candidate_id, Candidate.tenant_id == current_user.tenant_id, Candidate.deleted_at.is_(None))
+        .first()
+    )
+    if candidate is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Candidate not found")
+
+    current_doc = (
+        db.query(Document)
+        .join(CandidateDocument, CandidateDocument.file_id == Document.id)
+        .filter(CandidateDocument.candidate_id == candidate_id, CandidateDocument.is_current.is_(True))
+        .order_by(CandidateDocument.version_no.desc())
+        .first()
+    )
+    if current_doc is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No CV on file for this candidate")
+
+    file_path = storage.STORAGE_ROOT / current_doc.storage_key
+    if not file_path.exists():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="CV file is missing from storage")
+
+    return FileResponse(file_path, media_type=current_doc.mime_type, filename=current_doc.original_filename)
 
 
 @router.post("/cv/parse-preview", response_model=CVPreviewResponse)
@@ -222,6 +257,7 @@ def cv_commit(
         fingerprint = compute_fingerprint(full_name=item.full_name, email=item.email, phone=item.phone)
         candidate = Candidate(
             tenant_id=uuid.UUID(current_user.tenant_id),
+            owner_user_id=uuid.UUID(current_user.user_id),
             full_name=item.full_name,
             email=item.email,
             phone=item.phone,
