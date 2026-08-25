@@ -28,6 +28,7 @@ export interface PublicJobDetail {
   is_technical_role: boolean;
   applicant_count: number;
   screening_questions: PublicScreeningQuestion[];
+  board_path: string;
 }
 
 export function useOrgBoard(slug: string) {

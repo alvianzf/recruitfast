@@ -53,6 +53,12 @@ def _applicant_count(db, job_id: uuid.UUID) -> int:
     return db.query(func.count(JobApplication.id)).filter(JobApplication.job_id == job_id).scalar() or 0
 
 
+def _board_path(tenant: Tenant) -> str:
+    if tenant.type == TenantType.freelance_org:
+        return "/careers/public"
+    return f"/careers/{tenant.slug}"
+
+
 def _board_response(db, tenant: Tenant) -> PublicBoardResponse:
     jobs = (
         db.query(Job)
@@ -108,6 +114,8 @@ def public_job_detail(job_id: uuid.UUID) -> PublicJobDetail:
         job = db.query(Job).filter(Job.id == job_id, Job.status == JobStatus.open, Job.deleted_at.is_(None)).first()
         if job is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Job not found")
+        # tenants isn't RLS-protected, safe to query before re-scoping below.
+        tenant = db.query(Tenant).filter(Tenant.id == job.tenant_id).first()
         # Now that we know the real tenant_id, re-scope properly for the
         # rest of this request's queries (screening questions, etc.).
         set_rls_context(db, tenant_id=str(job.tenant_id), role="recruiter")
@@ -125,6 +133,7 @@ def public_job_detail(job_id: uuid.UUID) -> PublicJobDetail:
             description=job.description,
             is_technical_role=job.is_technical_role,
             applicant_count=_applicant_count(db, job.id),
+            board_path=_board_path(tenant),
             screening_questions=[
                 PublicScreeningQuestionOut(id=q.id, question_text=q.question_text, position=q.position)
                 for q in questions

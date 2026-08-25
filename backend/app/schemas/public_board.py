@@ -32,6 +32,11 @@ class PublicJobDetail(BaseModel):
     is_technical_role: bool
     applicant_count: int
     screening_questions: list[PublicScreeningQuestionOut]
+    # Frontend route back to the board this job came from — /careers/public
+    # for the Freelance Org, /careers/{slug} for an Org tenant. Lets the
+    # post-apply "browse other jobs" link go back to the right board
+    # instead of guessing.
+    board_path: str
 
 
 class ApplyResponse(BaseModel):

@@ -95,6 +95,9 @@ export default function ApplyPage() {
             <Typography color="text.secondary">
               Thanks for applying to {job.title}. The team will be in touch if there's a fit.
             </Typography>
+            <Button component={RouterLink} to={job.board_path} variant="outlined" sx={{ mt: 1 }}>
+              Browse other jobs
+            </Button>
           </Stack>
         </Paper>
       </Box>
@@ -237,7 +240,13 @@ export default function ApplyPage() {
               )}
             />
 
-            <Button variant="contained" size="large" type="submit" disabled={!cvFile || isSubmitting}>
+            <Button
+              variant="contained"
+              size="large"
+              type="submit"
+              disabled={!cvFile || isSubmitting}
+              startIcon={isSubmitting ? <CircularProgress size={18} color="inherit" /> : undefined}
+            >
               {isSubmitting ? "Submitting…" : "Submit application"}
             </Button>
           </Stack>
