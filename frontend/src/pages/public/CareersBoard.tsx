@@ -36,7 +36,7 @@ export default function CareersBoard({ freelance = false }: { freelance?: boolea
         {data && (
           <>
             <Typography variant="h4" sx={{ fontWeight: 800, textAlign: "center" }}>
-              {data.org_name}
+              {freelance ? "Public Jobs" : data.org_name}
             </Typography>
             <Typography color="text.secondary" sx={{ textAlign: "center" }}>
               Open positions
