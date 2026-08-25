@@ -234,17 +234,6 @@ export default function CandidateDetail() {
                   <CvPreviewPanel candidateId={candidateId} />
                 </Paper>
 
-                <Paper sx={{ p: 1 }}>
-                  <Accordion disableGutters elevation={0} sx={{ backdropFilter: "none", "&:before": { display: "none" } }}>
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                      <Typography sx={{ fontWeight: 700 }}>Parsed Data</Typography>
-                    </AccordionSummary>
-                    <AccordionDetails>
-                      <ParsedDataTable parsedFields={doc.parsed_fields} />
-                    </AccordionDetails>
-                  </Accordion>
-                </Paper>
-
                 {doc.parsed_fields.summary && doc.parsed_fields.summary.length > 0 && (
                   <Paper sx={{ p: 2.5 }}>
                     <Typography sx={{ fontWeight: 700, mb: 1 }}>Summary</Typography>
@@ -366,7 +355,21 @@ export default function CandidateDetail() {
         </Grid>
 
         <Grid size={{ xs: 12, md: 5 }}>
-          <NotesPanel candidateId={candidateId} />
+          <Stack spacing={2}>
+            {doc && (
+              <Paper sx={{ p: 1 }}>
+                <Accordion disableGutters elevation={0} sx={{ backdropFilter: "none", "&:before": { display: "none" } }}>
+                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                    <Typography sx={{ fontWeight: 700 }}>Details</Typography>
+                  </AccordionSummary>
+                  <AccordionDetails>
+                    <ParsedDataTable parsedFields={doc.parsed_fields} />
+                  </AccordionDetails>
+                </Accordion>
+              </Paper>
+            )}
+            <NotesPanel candidateId={candidateId} />
+          </Stack>
         </Grid>
       </Grid>
 
