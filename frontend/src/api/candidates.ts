@@ -11,6 +11,23 @@ export interface Candidate {
   current_position: string | null;
   total_years_experience: string | null;
   blacklisted: boolean;
+  open_to_other_roles: boolean;
+  linkedin_url: string | null;
+  github_url: string | null;
+  portfolio_url: string | null;
+}
+
+export interface CandidateUpdateInput {
+  full_name?: string;
+  email?: string | null;
+  phone?: string | null;
+  source?: string | null;
+  current_position?: string | null;
+  total_years_experience?: string | null;
+  linkedin_url?: string | null;
+  github_url?: string | null;
+  portfolio_url?: string | null;
+  open_to_other_roles?: boolean;
 }
 
 export interface PossibleDuplicate {
@@ -81,6 +98,30 @@ export function useCandidate(candidateId: string) {
     queryKey: ["candidate", candidateId],
     queryFn: async () => (await api.get<CandidateDetail>(`/candidates/${candidateId}`)).data,
     enabled: !!candidateId,
+  });
+}
+
+export function useUpdateCandidate(candidateId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: CandidateUpdateInput) =>
+      (await api.patch<Candidate>(`/candidates/${candidateId}`, input)).data,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["candidate", candidateId] });
+      queryClient.invalidateQueries({ queryKey: ["candidates"] });
+    },
+  });
+}
+
+export function useDeleteCandidate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (candidateId: string) => {
+      await api.delete(`/candidates/${candidateId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["candidates"] });
+    },
   });
 }
 

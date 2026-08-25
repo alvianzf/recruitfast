@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   Accordion,
   AccordionDetails,
@@ -13,20 +13,34 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
+  FormControlLabel,
   Grid,
+  IconButton,
+  ListItemIcon,
+  Menu,
+  MenuItem,
   Paper,
   Radio,
   RadioGroup,
-  FormControlLabel,
   Stack,
+  Switch,
   TextField,
   Typography,
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import BlockOutlinedIcon from "@mui/icons-material/BlockOutlined";
+import MoreVertIcon from "@mui/icons-material/MoreVert";
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlined";
 
-import { useCandidate } from "../api/candidates";
+import {
+  useCandidate,
+  useDeleteCandidate,
+  useUpdateCandidate,
+  type CandidateDetail,
+  type CandidateUpdateInput,
+} from "../api/candidates";
 import { useAddCandidateNote, useCandidateNotes } from "../api/notes";
 import { useBlacklistCandidate } from "../api/pipeline";
 import { useBlacklistStatuses } from "../api/blacklist";
@@ -171,10 +185,130 @@ function BlacklistDialog({
   );
 }
 
+function EditCandidateDialog({
+  candidate,
+  open,
+  onClose,
+}: {
+  candidate: CandidateDetail;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const update = useUpdateCandidate(candidate.id);
+  const [form, setForm] = useState<CandidateUpdateInput>({
+    full_name: candidate.full_name,
+    email: candidate.email ?? "",
+    phone: candidate.phone ?? "",
+    source: candidate.source ?? "",
+    current_position: candidate.current_position ?? "",
+    total_years_experience: candidate.total_years_experience ?? "",
+    linkedin_url: candidate.linkedin_url ?? "",
+    github_url: candidate.github_url ?? "",
+    portfolio_url: candidate.portfolio_url ?? "",
+    open_to_other_roles: candidate.open_to_other_roles,
+  });
+
+  function field(key: keyof CandidateUpdateInput) {
+    return {
+      value: (form[key] as string) ?? "",
+      onChange: (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [key]: e.target.value })),
+    };
+  }
+
+  async function handleSave() {
+    if (!form.full_name?.trim()) return;
+    await update.mutateAsync(form);
+    onClose();
+  }
+
+  return (
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+      <DialogTitle sx={{ fontWeight: 700 }}>Edit candidate</DialogTitle>
+      <DialogContent>
+        <Stack spacing={2.5} sx={{ mt: 1 }}>
+          <TextField label="Full name" required fullWidth autoFocus {...field("full_name")} />
+          <TextField label="Email" type="email" fullWidth {...field("email")} />
+          <TextField label="Phone" fullWidth {...field("phone")} />
+          <TextField label="Source" fullWidth {...field("source")} />
+          <TextField label="Position" fullWidth {...field("current_position")} />
+          <TextField label="Years of experience" fullWidth {...field("total_years_experience")} />
+          <TextField label="LinkedIn URL" fullWidth {...field("linkedin_url")} />
+          <TextField label="GitHub URL" fullWidth {...field("github_url")} />
+          <TextField label="Portfolio URL" fullWidth {...field("portfolio_url")} />
+          <Stack>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={!!form.open_to_other_roles}
+                  onChange={(e) => setForm((f) => ({ ...f, open_to_other_roles: e.target.checked }))}
+                />
+              }
+              label="Open Profile"
+            />
+            <Typography variant="caption" color="text.secondary">
+              Visible to every recruiter in every organization, not just this tenant/team — the same
+              cross-tenant sharing a candidate can opt into themselves via the public application form.
+            </Typography>
+          </Stack>
+        </Stack>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 3 }}>
+        <Button onClick={onClose} color="inherit">
+          Cancel
+        </Button>
+        <Button variant="contained" disabled={!form.full_name?.trim() || update.isPending} onClick={handleSave}>
+          {update.isPending ? "Saving…" : "Save"}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+function DeleteCandidateDialog({
+  candidate,
+  open,
+  onClose,
+}: {
+  candidate: CandidateDetail;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const deleteCandidate = useDeleteCandidate();
+  const navigate = useNavigate();
+
+  async function handleConfirm() {
+    await deleteCandidate.mutateAsync(candidate.id);
+    navigate("/candidates");
+  }
+
+  return (
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+      <DialogTitle sx={{ fontWeight: 700 }}>Delete {candidate.full_name}?</DialogTitle>
+      <DialogContent>
+        <Typography variant="body2" color="text.secondary">
+          This removes the candidate from every list and pipeline view. This can't be undone from the
+          UI.
+        </Typography>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 3 }}>
+        <Button onClick={onClose} color="inherit">
+          Cancel
+        </Button>
+        <Button variant="contained" color="error" disabled={deleteCandidate.isPending} onClick={handleConfirm}>
+          {deleteCandidate.isPending ? "Deleting…" : "Delete"}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 export default function CandidateDetail() {
   const { candidateId = "" } = useParams();
   const { data: candidate, isLoading } = useCandidate(candidateId);
   const [blacklistOpen, setBlacklistOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const { data: blacklistStatuses } = useBlacklistStatuses([candidate?.email]);
 
   if (isLoading || !candidate) {
@@ -186,27 +320,56 @@ export default function CandidateDetail() {
   }
 
   const doc = candidate.current_document;
-  const skills = doc?.parsed_fields.technical_skills ?? {};
-  const hasSkills = Object.values(skills).some((list) => list && list.length > 0);
   const elsewhereStatus = blacklistStatuses?.find((s) => s.email.toLowerCase() === candidate.email?.toLowerCase());
 
   return (
     <Stack spacing={2}>
       <Breadcrumbs items={[{ label: "Candidates", to: "/candidates" }, { label: candidate.full_name }]} />
-      <PageHeader
-        title={candidate.full_name}
-        action={
-          candidate.blacklisted
-            ? undefined
-            : {
-                label: "Blacklist candidate",
-                icon: <BlockOutlinedIcon fontSize="small" />,
-                onClick: () => setBlacklistOpen(true),
-              }
-        }
-      >
+      <PageHeader title={candidate.full_name}>
         <BlacklistBadge status={elsewhereStatus} />
+        <IconButton onClick={(e) => setMenuAnchor(e.currentTarget)}>
+          <MoreVertIcon fontSize="small" />
+        </IconButton>
       </PageHeader>
+
+      <Menu anchorEl={menuAnchor} open={!!menuAnchor} onClose={() => setMenuAnchor(null)}>
+        <MenuItem
+          onClick={() => {
+            setMenuAnchor(null);
+            setEditOpen(true);
+          }}
+        >
+          <ListItemIcon>
+            <EditOutlinedIcon fontSize="small" />
+          </ListItemIcon>
+          Edit candidate
+        </MenuItem>
+        {!candidate.blacklisted && (
+          <MenuItem
+            onClick={() => {
+              setMenuAnchor(null);
+              setBlacklistOpen(true);
+            }}
+          >
+            <ListItemIcon>
+              <BlockOutlinedIcon fontSize="small" />
+            </ListItemIcon>
+            Blacklist candidate
+          </MenuItem>
+        )}
+        <MenuItem
+          onClick={() => {
+            setMenuAnchor(null);
+            setDeleteOpen(true);
+          }}
+          sx={{ color: "error.main" }}
+        >
+          <ListItemIcon>
+            <DeleteOutlineIcon fontSize="small" color="error" />
+          </ListItemIcon>
+          Delete candidate
+        </MenuItem>
+      </Menu>
 
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, md: 7 }}>
@@ -220,6 +383,19 @@ export default function CandidateDetail() {
                 <InfoRow label="Experience" value={candidate.total_years_experience} />
               </Stack>
               {candidate.blacklisted && <Alert severity="error" sx={{ mt: 2 }}>Blacklisted (Do Not Contact)</Alert>}
+              {doc?.parsed_fields.summary && doc.parsed_fields.summary.length > 0 && (
+                <>
+                  <Divider sx={{ my: 2 }} />
+                  <Typography sx={{ fontWeight: 700, mb: 1 }}>Summary</Typography>
+                  <Stack spacing={1} component="ul" sx={{ pl: 2.5, m: 0 }}>
+                    {doc.parsed_fields.summary.map((line, i) => (
+                      <Typography key={i} component="li" variant="body2">
+                        {line}
+                      </Typography>
+                    ))}
+                  </Stack>
+                </>
+              )}
             </Paper>
 
             {doc && (
@@ -233,86 +409,6 @@ export default function CandidateDetail() {
                 <Paper sx={{ p: 2.5 }}>
                   <CvPreviewPanel candidateId={candidateId} />
                 </Paper>
-
-                {doc.parsed_fields.summary && doc.parsed_fields.summary.length > 0 && (
-                  <Paper sx={{ p: 2.5 }}>
-                    <Typography sx={{ fontWeight: 700, mb: 1 }}>Summary</Typography>
-                    <Stack spacing={1} component="ul" sx={{ pl: 2.5, m: 0 }}>
-                      {doc.parsed_fields.summary.map((line, i) => (
-                        <Typography key={i} component="li" variant="body2">
-                          {line}
-                        </Typography>
-                      ))}
-                    </Stack>
-                  </Paper>
-                )}
-
-                {hasSkills && (
-                  <Paper sx={{ p: 2.5 }}>
-                    <Typography sx={{ fontWeight: 700, mb: 1.5 }}>Technical skills</Typography>
-                    <Stack spacing={1.5}>
-                      {Object.entries(skills).map(
-                        ([category, items]) =>
-                          items &&
-                          items.length > 0 && (
-                            <Stack key={category} spacing={0.75}>
-                              <Typography variant="caption" color="text.secondary" sx={{ textTransform: "uppercase" }}>
-                                {category.replace(/_/g, " ")}
-                              </Typography>
-                              <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
-                                {items.map((skill) => (
-                                  <Chip key={skill.name} size="small" label={`${skill.name} · ${skill.years_of_experience}y`} />
-                                ))}
-                              </Stack>
-                            </Stack>
-                          ),
-                      )}
-                    </Stack>
-                  </Paper>
-                )}
-
-                {doc.parsed_fields.main_projects && doc.parsed_fields.main_projects.length > 0 && (
-                  <Paper sx={{ p: 1 }}>
-                    <Typography sx={{ fontWeight: 700, p: 1.5, pb: 0.5 }}>Experience</Typography>
-                    {doc.parsed_fields.main_projects.map((proj, i) => (
-                      <Accordion key={i} disableGutters elevation={0} sx={{ backdropFilter: "none", "&:before": { display: "none" } }}>
-                        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                          <Stack>
-                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                              {proj.project_title}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {[proj.company_name, proj.position, proj.duration].filter(Boolean).join(" · ")}
-                            </Typography>
-                          </Stack>
-                        </AccordionSummary>
-                        <AccordionDetails>
-                          <Stack spacing={1.5}>
-                            {proj.project_description && (
-                              <Typography variant="body2">{proj.project_description}</Typography>
-                            )}
-                            {proj.responsibilities.length > 0 && (
-                              <Stack component="ul" sx={{ pl: 2.5, m: 0 }} spacing={0.5}>
-                                {proj.responsibilities.map((r, ri) => (
-                                  <Typography key={ri} component="li" variant="body2">
-                                    {r}
-                                  </Typography>
-                                ))}
-                              </Stack>
-                            )}
-                            {proj.technologies_used.length > 0 && (
-                              <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
-                                {proj.technologies_used.map((t) => (
-                                  <Chip key={t} size="small" variant="outlined" label={t} />
-                                ))}
-                              </Stack>
-                            )}
-                          </Stack>
-                        </AccordionDetails>
-                      </Accordion>
-                    ))}
-                  </Paper>
-                )}
 
                 {doc.parsed_fields.education && doc.parsed_fields.education.length > 0 && (
                   <Paper sx={{ p: 2.5 }}>
@@ -374,6 +470,8 @@ export default function CandidateDetail() {
       </Grid>
 
       <BlacklistDialog candidateId={candidateId} open={blacklistOpen} onClose={() => setBlacklistOpen(false)} />
+      <EditCandidateDialog candidate={candidate} open={editOpen} onClose={() => setEditOpen(false)} />
+      <DeleteCandidateDialog candidate={candidate} open={deleteOpen} onClose={() => setDeleteOpen(false)} />
     </Stack>
   );
 }
