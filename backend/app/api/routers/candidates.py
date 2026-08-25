@@ -2,11 +2,12 @@ import asyncio
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import CurrentUser, get_current_user, get_db
+from app.core.limiter import limiter
 from app.models.candidate import Candidate, CandidateDocument, ParseStatus
 from app.models.document import Document
 from app.models.job import Job
@@ -26,12 +27,10 @@ from app.schemas.candidate import (
 )
 from app.schemas.screening import OpenProfileCandidate
 from app.services import storage
-from app.services.cv_parser import SUPPORTED_EXTENSIONS, UnsupportedFileType, extract_text, parse_cv_text
+from app.services.cv_parser import MAX_FILE_SIZE_BYTES, SUPPORTED_EXTENSIONS, UnsupportedFileType, extract_text, parse_cv_text
 from app.services.dedup import compute_fingerprint
 
 router = APIRouter(prefix="/candidates", tags=["candidates"])
-
-MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024
 
 
 @router.get("", response_model=list[CandidateOut])
@@ -220,7 +219,9 @@ def download_candidate_cv(
 
 
 @router.post("/cv/parse-preview", response_model=CVPreviewResponse)
+@limiter.limit("20/minute")
 async def cv_parse_preview(
+    request: Request,
     files: list[UploadFile] = File(...),
     db: Session = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
@@ -234,7 +235,10 @@ async def cv_parse_preview(
         filename = upload.filename or "unknown"
         ext = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
 
-        content = await upload.read()
+        # Bounded read (MAX_FILE_SIZE_BYTES + 1, not the whole file) so an
+        # oversized upload can't buffer arbitrarily large amounts of
+        # memory just to discover it should be rejected.
+        content = await upload.read(MAX_FILE_SIZE_BYTES + 1)
         if len(content) > MAX_FILE_SIZE_BYTES:
             items.append(
                 CVPreviewItem(temp_id="", filename=filename, parse_status="failed", error="File exceeds 10 MB limit")

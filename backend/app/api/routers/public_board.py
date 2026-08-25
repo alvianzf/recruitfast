@@ -2,10 +2,11 @@ import asyncio
 import json
 import uuid
 
-from fastapi import APIRouter, Form, HTTPException, UploadFile, File, status
+from fastapi import APIRouter, Form, HTTPException, Request, UploadFile, File, status
 from sqlalchemy import func
 
 from app.core.database import raw_session, set_rls_context
+from app.core.limiter import limiter
 from app.models.candidate import Candidate, CandidateDocument, ParseStatus
 from app.models.document import Document
 from app.models.job import Job, JobStatus
@@ -22,7 +23,7 @@ from app.schemas.public_board import (
     PublicScreeningQuestionOut,
 )
 from app.services import storage
-from app.services.cv_parser import UnsupportedFileType, extract_text, parse_cv_text
+from app.services.cv_parser import MAX_FILE_SIZE_BYTES, SUPPORTED_EXTENSIONS, UnsupportedFileType, extract_text, parse_cv_text
 from app.services.dedup import compute_fingerprint
 
 router = APIRouter(prefix="/public", tags=["public"])
@@ -142,7 +143,9 @@ def public_job_detail(job_id: uuid.UUID) -> PublicJobDetail:
 
 
 @router.post("/jobs/{job_id}/apply", response_model=ApplyResponse, status_code=201)
+@limiter.limit("5/minute")
 async def apply_to_job(
+    request: Request,
     job_id: uuid.UUID,
     full_name: str = Form(...),
     email: str = Form(...),
@@ -183,9 +186,21 @@ async def apply_to_job(
 
         # --- CV parse (no preview step for a public applicant — one
         # clear submit action, see docs/10) ---
+        # Security: this is a fully public, unauthenticated endpoint, and
+        # a successful parse now triggers a paid LLM API call — without a
+        # size/type check here, anyone could POST arbitrarily large files
+        # to exhaust memory/disk, or spam this endpoint to run up the LLM
+        # bill. candidates.py's authenticated cv_parse_preview already
+        # enforced both checks; this path was missing them entirely.
         filename = cv.filename or "cv"
         ext = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
-        content = await cv.read()
+        if ext not in SUPPORTED_EXTENSIONS:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Unsupported file type — use PDF or DOCX")
+        # Bounded read — see the comment above on why this can't be a
+        # plain `await cv.read()` on a public, unauthenticated endpoint.
+        content = await cv.read(MAX_FILE_SIZE_BYTES + 1)
+        if len(content) > MAX_FILE_SIZE_BYTES:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="File exceeds 10 MB limit")
         temp_id, temp_path = storage.save_temp(content, filename)
         parsed_fields, parse_confidence = {}, {}
         try:

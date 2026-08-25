@@ -111,6 +111,13 @@ migrations later), but only P0 is built first.
 Rationale for every P1/P2 item and the flows they close: see
 [08-open-questions-and-gaps.md](08-open-questions-and-gaps.md).
 
+## Security
+
+An adversarial review of the actually-exploitable surface (public
+endpoints, file uploads, auth) — findings, what was fixed, and what was
+deliberately left as documented/accepted risk: see
+[11-security-review.md](11-security-review.md).
+
 ## Tech stack (summary)
 
 - **Backend:** Python, FastAPI, SQLAlchemy, Alembic — chosen so the CV

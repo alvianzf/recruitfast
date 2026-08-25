@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 
 from app.core.database import raw_session
+from app.core.limiter import limiter
 from app.core.security import create_access_token, create_refresh_token, verify_password
 from app.models.user import User, UserStatus
 from app.schemas.auth import LoginRequest, TokenResponse
@@ -9,7 +10,8 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(payload: LoginRequest) -> TokenResponse:
+@limiter.limit("10/minute")
+def login(request: Request, payload: LoginRequest) -> TokenResponse:
     # Pre-auth lookup by email, so no tenant is known yet — the users
     # table holds account metadata, not recruiter content, so it isn't
     # RLS-restricted the way jobs/candidates are. See docs/02.

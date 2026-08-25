@@ -40,6 +40,10 @@ PHONE_RE = re.compile(r"(\+?\d[\d\-\.\s\(\)]{7,}\d)")
 YEAR_RANGE_RE = re.compile(r"^\d{4}\s*-\s*\d{4}$")
 
 SUPPORTED_EXTENSIONS = {".pdf", ".docx"}
+# Shared by every CV upload entry point, authenticated or public — see
+# the security note in public_board.py's apply_to_job for why this must
+# be enforced on the public path too, not just the authenticated one.
+MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024
 
 BULLET = "•"
 

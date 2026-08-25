@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 
 from app.core.database import raw_session
+from app.core.limiter import limiter
 from app.core.security import hash_password
 from app.models.freelance import FreelanceApplication
 from app.models.tenant import Tenant, TenantType
@@ -11,7 +12,8 @@ router = APIRouter(prefix="/freelance", tags=["freelance"])
 
 
 @router.post("/register", response_model=FreelanceRegisterResponse, status_code=201)
-def register_freelance(payload: FreelanceRegisterRequest) -> FreelanceRegisterResponse:
+@limiter.limit("5/minute")
+def register_freelance(request: Request, payload: FreelanceRegisterRequest) -> FreelanceRegisterResponse:
     # Public, pre-auth endpoint — no tenant known yet, so this runs without
     # the RLS-scoped session. See docs/01 freelance registration flow.
     with raw_session() as db:
