@@ -1,27 +1,45 @@
 import { Link as RouterLink } from "react-router-dom";
-import { Box, Button, Container, Grid, Paper, Stack, Typography } from "@mui/material";
+import { Box, Button, Container, Grid, Link as MuiLink, Paper, Stack, Typography } from "@mui/material";
 import WorkOutlinedIcon from "@mui/icons-material/WorkOutlined";
 import PeopleOutlinedIcon from "@mui/icons-material/PeopleOutlined";
 import PublicOutlinedIcon from "@mui/icons-material/PublicOutlined";
+import GroupsOutlinedIcon from "@mui/icons-material/GroupsOutlined";
+import BlockOutlinedIcon from "@mui/icons-material/BlockOutlined";
+import TuneOutlinedIcon from "@mui/icons-material/TuneOutlined";
 
 import { useAuth } from "../../auth/AuthContext";
 import Logo from "../../components/Logo";
 
 const FEATURES = [
   {
-    icon: WorkOutlinedIcon,
-    title: "Pipelines that fit how you work",
-    description: "Customizable stages, Kanban or table view, drag-and-drop with full keyboard parity.",
+    icon: TuneOutlinedIcon,
+    title: "A pipeline per job, not one-size-fits-all",
+    description: "Every recruiter customizes their own job's stages — add, rename, reorder, or delete, since different roles need different hiring processes.",
   },
   {
     icon: PeopleOutlinedIcon,
-    title: "CV parsing without a hosted LLM",
-    description: "Structured extraction from resumes, reviewed before it ever touches your pipeline.",
+    title: "CV parsing that's actually structured",
+    description: "Rule-based extraction by default, with an optional LLM-assisted tier for messier resumes — reviewed before it ever touches your pipeline.",
   },
   {
     icon: PublicOutlinedIcon,
     title: "A public job board, out of the box",
-    description: "Org and freelance career pages with screening questions and automatic eligibility.",
+    description: "Org and freelance career pages with screening questions, automatic eligibility, and a search-and-filter board for candidates.",
+  },
+  {
+    icon: GroupsOutlinedIcon,
+    title: "Teams and per-recruiter performance",
+    description: "Group recruiters into teams and slice dashboards — open jobs, active candidates, offers, won/lost — by team or individually.",
+  },
+  {
+    icon: WorkOutlinedIcon,
+    title: "Assign jobs, or let recruiters claim them",
+    description: "Leave a job unassigned for any recruiter to self-claim, or hand it off directly — never a bottleneck on one person.",
+  },
+  {
+    icon: BlockOutlinedIcon,
+    title: "A blacklist that actually crosses tenants",
+    description: "Flag a candidate once and every recruiter platform-wide is warned if that email applies again — without exposing who flagged it or why, beyond the reason itself.",
   },
 ];
 
@@ -96,6 +114,29 @@ export default function Landing() {
           ))}
         </Grid>
       </Container>
+
+      <Box component="footer" sx={{ bgcolor: "#000000", color: "rgba(255,255,255,0.85)", mt: 4 }}>
+        <Container maxWidth="lg" sx={{ py: 5 }}>
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={3} sx={{ justifyContent: "space-between", alignItems: { sm: "center" } }}>
+            <Logo compact />
+            <Stack direction="row" spacing={3} sx={{ flexWrap: "wrap", gap: 1.5 }}>
+              <MuiLink component={RouterLink} to="/careers/public" color="inherit" underline="hover">
+                Public Jobs
+              </MuiLink>
+              <MuiLink component={RouterLink} to="/login" color="inherit" underline="hover">
+                Sign in
+              </MuiLink>
+              <MuiLink component={RouterLink} to="/register" color="inherit" underline="hover">
+                Register as a freelance recruiter
+              </MuiLink>
+            </Stack>
+          </Stack>
+          <Typography variant="caption" sx={{ display: "block", mt: 3, color: "rgba(255,255,255,0.5)" }}>
+            © {new Date().getFullYear()} RecruitFast. Multi-tenant recruiting, built with confidentiality
+            enforced at the database layer.
+          </Typography>
+        </Container>
+      </Box>
     </Box>
   );
 }
