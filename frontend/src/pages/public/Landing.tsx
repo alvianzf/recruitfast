@@ -4,6 +4,7 @@ import WorkOutlinedIcon from "@mui/icons-material/WorkOutlined";
 import PeopleOutlinedIcon from "@mui/icons-material/PeopleOutlined";
 import PublicOutlinedIcon from "@mui/icons-material/PublicOutlined";
 
+import { useAuth } from "../../auth/AuthContext";
 import Logo from "../../components/Logo";
 
 const FEATURES = [
@@ -25,6 +26,8 @@ const FEATURES = [
 ];
 
 export default function Landing() {
+  const { user } = useAuth();
+
   return (
     <Box sx={{ minHeight: "100vh" }}>
       <Container maxWidth="lg" sx={{ py: { xs: 3, md: 4 } }}>
@@ -34,12 +37,20 @@ export default function Landing() {
             <Button component={RouterLink} to="/careers/public" color="inherit">
               Public Jobs
             </Button>
-            <Button component={RouterLink} to="/login" variant="outlined">
-              Sign in
-            </Button>
-            <Button component={RouterLink} to="/register" variant="contained">
-              Register
-            </Button>
+            {user ? (
+              <Button component={RouterLink} to="/app/dashboard" variant="contained">
+                Dashboard
+              </Button>
+            ) : (
+              <>
+                <Button component={RouterLink} to="/login" variant="outlined">
+                  Sign in
+                </Button>
+                <Button component={RouterLink} to="/register" variant="contained">
+                  Register
+                </Button>
+              </>
+            )}
           </Stack>
         </Stack>
       </Container>
@@ -53,12 +64,20 @@ export default function Landing() {
           with confidentiality boundaries built into the database, not just the UI.
         </Typography>
         <Stack direction="row" spacing={2} sx={{ justifyContent: "center", mt: 4 }}>
-          <Button component={RouterLink} to="/login" variant="contained" size="large">
-            Sign in to your workspace
-          </Button>
-          <Button component={RouterLink} to="/register" variant="outlined" size="large">
-            Join as a freelance recruiter
-          </Button>
+          {user ? (
+            <Button component={RouterLink} to="/app/dashboard" variant="contained" size="large">
+              Go to your dashboard
+            </Button>
+          ) : (
+            <>
+              <Button component={RouterLink} to="/careers/public" variant="contained" size="large">
+                View Jobs
+              </Button>
+              <Button component={RouterLink} to="/login" variant="outlined" size="large">
+                Sign in to your workspace
+              </Button>
+            </>
+          )}
         </Stack>
       </Container>
 

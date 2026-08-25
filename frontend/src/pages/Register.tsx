@@ -14,9 +14,10 @@ import {
   Typography,
   Link as MuiLink,
 } from "@mui/material";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink, Navigate } from "react-router-dom";
 
 import { api } from "../api/client";
+import { useAuth } from "../auth/AuthContext";
 import Logo from "../components/Logo";
 
 const schema = z.object({
@@ -36,6 +37,7 @@ type FormValues = z.infer<typeof schema>;
 // platform-owned Freelance Org, gated by Superadmin approval afterward.
 // See docs/01-roles-permissions.md#freelance-recruiter-registration-flow.
 export default function Register() {
+  const { user } = useAuth();
   const [submitted, setSubmitted] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
@@ -44,6 +46,10 @@ export default function Register() {
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
+
+  if (user) {
+    return <Navigate to="/app/dashboard" replace />;
+  }
 
   async function onSubmit(values: FormValues) {
     setServerError(null);
