@@ -3,6 +3,7 @@ import {
   Dialog,
   DialogContent,
   DialogTitle,
+  Divider,
   IconButton,
   Stack,
   Table,
@@ -94,7 +95,7 @@ function MainProjectsTable({ projects }: { projects: MainProject[] }) {
   if (projects.length === 0) return null;
 
   return (
-    <Stack spacing={2}>
+    <Stack spacing={3}>
       {projects.map((p, i) => {
         const heading = [p.company_name, p.position].filter(Boolean).join(" — ") || "—";
         const rows: { label: string; value: string }[] = [];
@@ -107,7 +108,8 @@ function MainProjectsTable({ projects }: { projects: MainProject[] }) {
           rows.push({ label: "Technologies", value: p.technologies_used.join(", ") });
         }
         return (
-          <Stack key={i} spacing={0.5}>
+          <Stack key={i} spacing={1}>
+            {i > 0 && <Divider />}
             <Typography variant="body2" sx={{ fontWeight: 700 }}>
               {heading}
             </Typography>

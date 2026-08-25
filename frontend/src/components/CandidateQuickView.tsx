@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import { Chip, CircularProgress, Divider, Drawer, IconButton, Stack, Typography } from "@mui/material";
+import { useEffect, useState } from "react";
+import { Chip, CircularProgress, Divider, Drawer, IconButton, Stack, Tab, Tabs, Tooltip, Typography } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
@@ -20,6 +20,12 @@ function InfoRow({ label, value }: { label: string; value: string | null | undef
   );
 }
 
+const STATUS_COLOR: Record<string, "success" | "error" | "default"> = {
+  active: "success",
+  rejected: "error",
+  withdrawn: "default",
+};
+
 export default function CandidateQuickView({
   candidateIds,
   currentId,
@@ -33,10 +39,15 @@ export default function CandidateQuickView({
 }) {
   const open = currentId !== null;
   const { data: candidate, isLoading } = useCandidate(currentId ?? "");
+  const [tab, setTab] = useState<"details" | "cv">("details");
 
   const index = currentId ? candidateIds.indexOf(currentId) : -1;
   const hasPrev = index > 0;
   const hasNext = index >= 0 && index < candidateIds.length - 1;
+
+  useEffect(() => {
+    setTab("details");
+  }, [currentId]);
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -60,32 +71,48 @@ export default function CandidateQuickView({
       }}
     >
       <Stack sx={{ height: "100%" }}>
-        <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", p: 2 }}>
-          <Typography variant="h6" sx={{ fontWeight: 700, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {candidate?.full_name ?? "Quick view"}
-          </Typography>
-          <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0 }}>
-            <IconButton size="small" disabled={!hasPrev} onClick={() => hasPrev && onNavigate(candidateIds[index - 1])}>
-              <ChevronLeftIcon fontSize="small" />
-            </IconButton>
-            <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center", px: 0.5 }}>
-              {index >= 0 ? `${index + 1} / ${candidateIds.length}` : ""}
+        <Stack sx={{ p: 2, pb: 0 }}>
+          <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between" }}>
+            <Typography variant="h6" sx={{ fontWeight: 700, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {candidate?.full_name ?? "Quick view"}
             </Typography>
-            <IconButton size="small" disabled={!hasNext} onClick={() => hasNext && onNavigate(candidateIds[index + 1])}>
-              <ChevronRightIcon fontSize="small" />
-            </IconButton>
-            <IconButton size="small" onClick={onClose}>
-              <CloseIcon fontSize="small" />
-            </IconButton>
+            <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0 }}>
+              <IconButton size="small" disabled={!hasPrev} onClick={() => hasPrev && onNavigate(candidateIds[index - 1])}>
+                <ChevronLeftIcon fontSize="small" />
+              </IconButton>
+              <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center", px: 0.5 }}>
+                {index >= 0 ? `${index + 1} / ${candidateIds.length}` : ""}
+              </Typography>
+              <IconButton size="small" disabled={!hasNext} onClick={() => hasNext && onNavigate(candidateIds[index + 1])}>
+                <ChevronRightIcon fontSize="small" />
+              </IconButton>
+              <IconButton size="small" onClick={onClose}>
+                <CloseIcon fontSize="small" />
+              </IconButton>
+            </Stack>
           </Stack>
+          {candidate && candidate.placements.length > 0 && (
+            <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1, mt: 1 }}>
+              {candidate.placements.map((p) => (
+                <Tooltip key={p.job_id} title={p.job_title}>
+                  <Chip size="small" label={p.stage_name} color={STATUS_COLOR[p.status] ?? "default"} variant="outlined" />
+                </Tooltip>
+              ))}
+            </Stack>
+          )}
         </Stack>
+
+        <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ px: 2, mt: 1 }}>
+          <Tab value="details" label="Details" />
+          <Tab value="cv" label="CV" />
+        </Tabs>
         <Divider />
 
         {isLoading || !candidate ? (
           <Stack sx={{ alignItems: "center", py: 8 }}>
             <CircularProgress size={28} />
           </Stack>
-        ) : (
+        ) : tab === "details" ? (
           <Stack spacing={3} sx={{ p: 2.5, overflowY: "auto", flex: 1 }}>
             <Stack spacing={1}>
               <Typography sx={{ fontWeight: 700 }}>Basic Information</Typography>
@@ -103,7 +130,9 @@ export default function CandidateQuickView({
                 <ParsedDataTable parsedFields={doc.parsed_fields} />
               </Stack>
             )}
-
+          </Stack>
+        ) : (
+          <Stack sx={{ p: 2.5, overflowY: "auto", flex: 1 }}>
             <CvPreviewPanel candidateId={currentId} />
           </Stack>
         )}
