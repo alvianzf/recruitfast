@@ -110,7 +110,14 @@ def get_candidate(
             parse_status=cd.parse_status.value,
         )
     detail.placements = [
-        PlacementSummary(job_id=job.id, job_title=job.title, stage_name=stage.name, status=placement.status.value)
+        PlacementSummary(
+            job_id=job.id,
+            job_title=job.title,
+            stage_name=stage.name,
+            status=placement.status.value,
+            applied_at=placement.created_at,
+            last_moved_at=placement.updated_at,
+        )
         for placement, stage, job in placement_rows
     ]
     return detail

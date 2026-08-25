@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Chip, CircularProgress, Divider, Drawer, IconButton, Stack, Tab, Tabs, Tooltip, Typography } from "@mui/material";
+import { Chip, CircularProgress, Divider, Drawer, IconButton, Stack, Tab, Tabs, Typography } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
@@ -94,9 +94,13 @@ export default function CandidateQuickView({
           {candidate && candidate.placements.length > 0 && (
             <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1, mt: 1 }}>
               {candidate.placements.map((p) => (
-                <Tooltip key={p.job_id} title={p.job_title}>
-                  <Chip size="small" label={p.stage_name} color={STATUS_COLOR[p.status] ?? "default"} variant="outlined" />
-                </Tooltip>
+                <Chip
+                  key={p.job_id}
+                  size="small"
+                  label={`${p.job_title} · ${p.stage_name}`}
+                  color={STATUS_COLOR[p.status] ?? "default"}
+                  variant="outlined"
+                />
               ))}
             </Stack>
           )}

@@ -64,6 +64,8 @@ export interface PlacementSummary {
   job_title: string;
   stage_name: string;
   status: string;
+  applied_at: string;
+  last_moved_at: string;
 }
 
 export interface CandidateDetail extends Candidate {

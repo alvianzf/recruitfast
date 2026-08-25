@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict
@@ -51,6 +52,8 @@ class PlacementSummary(BaseModel):
     job_title: str
     stage_name: str
     status: str
+    applied_at: datetime
+    last_moved_at: datetime
 
 
 class CandidateDetailOut(CandidateOut):

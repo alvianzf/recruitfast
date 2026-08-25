@@ -19,6 +19,11 @@ import {
   Radio,
   RadioGroup,
   Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
   TextField,
   Typography,
 } from "@mui/material";
@@ -265,6 +270,41 @@ export default function CandidateDetail() {
                   </Paper>
                 )}
               </>
+            )}
+
+            {candidate.placements.length > 0 && (
+              <Paper sx={{ p: 2.5 }}>
+                <Typography sx={{ fontWeight: 700, mb: 1.5 }}>Job History</Typography>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ pl: 0 }}>Job</TableCell>
+                      <TableCell>Last stage</TableCell>
+                      <TableCell>Status</TableCell>
+                      <TableCell>Applied</TableCell>
+                      <TableCell>Last moved</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {candidate.placements.map((p) => (
+                      <TableRow key={p.job_id}>
+                        <TableCell sx={{ pl: 0, fontWeight: 600 }}>{p.job_title}</TableCell>
+                        <TableCell>{p.stage_name}</TableCell>
+                        <TableCell>
+                          <Chip
+                            size="small"
+                            variant="outlined"
+                            label={p.status}
+                            color={p.status === "rejected" ? "error" : p.status === "withdrawn" ? "default" : "success"}
+                          />
+                        </TableCell>
+                        <TableCell>{new Date(p.applied_at).toLocaleDateString()}</TableCell>
+                        <TableCell>{new Date(p.last_moved_at).toLocaleDateString()}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Paper>
             )}
           </Stack>
         </Grid>
