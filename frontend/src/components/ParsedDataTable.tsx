@@ -58,7 +58,9 @@ function stringifyParsedValue(value: unknown): string {
 }
 
 function TechnicalSkillsTable({ skills }: { skills: Record<string, Skill[]> }) {
-  const rows = Object.values(skills).flatMap((items) => (Array.isArray(items) ? items : []));
+  const rows = Object.values(skills)
+    .flatMap((items) => (Array.isArray(items) ? items : []))
+    .sort((a, b) => (parseFloat(b.years_of_experience ?? "") || 0) - (parseFloat(a.years_of_experience ?? "") || 0));
   if (rows.length === 0) return null;
 
   return (
