@@ -34,6 +34,7 @@ import Breadcrumbs from "../components/Breadcrumbs";
 import PageHeader from "../components/PageHeader";
 import BlacklistBadge from "../components/BlacklistBadge";
 import ParsedDataTable from "../components/ParsedDataTable";
+import CvPreviewPanel from "../components/CvPreviewPanel";
 
 function InfoRow({ label, value }: { label: string; value: string | null }) {
   if (!value) return null;
@@ -228,6 +229,10 @@ export default function CandidateDetail() {
                     Parsed from {doc.original_filename} — review fields before relying on them fully.
                   </Alert>
                 )}
+
+                <Paper sx={{ p: 2.5 }}>
+                  <CvPreviewPanel candidateId={candidateId} />
+                </Paper>
 
                 <Paper sx={{ p: 1 }}>
                   <Accordion disableGutters elevation={0} sx={{ backdropFilter: "none", "&:before": { display: "none" } }}>

@@ -1,22 +1,12 @@
-import { useEffect, useRef } from "react";
-import {
-  Alert,
-  Button,
-  Chip,
-  CircularProgress,
-  Divider,
-  Drawer,
-  IconButton,
-  Stack,
-  Typography,
-} from "@mui/material";
+import { useEffect } from "react";
+import { Chip, CircularProgress, Divider, Drawer, IconButton, Stack, Typography } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
-import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
 
-import { useCandidate, useCandidateCv } from "../api/candidates";
+import { useCandidate } from "../api/candidates";
 import ParsedDataTable from "./ParsedDataTable";
+import CvPreviewPanel from "./CvPreviewPanel";
 
 function InfoRow({ label, value }: { label: string; value: string | null | undefined }) {
   if (!value) return null;
@@ -43,20 +33,6 @@ export default function CandidateQuickView({
 }) {
   const open = currentId !== null;
   const { data: candidate, isLoading } = useCandidate(currentId ?? "");
-  const { data: cv, isLoading: cvLoading, isError: cvError } = useCandidateCv(currentId);
-
-  const prevUrlRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (prevUrlRef.current && prevUrlRef.current !== cv?.url) {
-      URL.revokeObjectURL(prevUrlRef.current);
-    }
-    prevUrlRef.current = cv?.url ?? null;
-  }, [cv?.url]);
-  useEffect(() => {
-    return () => {
-      if (prevUrlRef.current) URL.revokeObjectURL(prevUrlRef.current);
-    };
-  }, []);
 
   const index = currentId ? candidateIds.indexOf(currentId) : -1;
   const hasPrev = index > 0;
@@ -79,7 +55,9 @@ export default function CandidateQuickView({
       anchor="right"
       open={open}
       onClose={onClose}
-      slotProps={{ paper: { sx: { width: { xs: "100%", sm: 560 }, backdropFilter: "none" } } }}
+      slotProps={{
+        paper: { sx: { width: { xs: "100%", sm: 560 }, backdropFilter: "none", backgroundColor: "background.paper" } },
+      }}
     >
       <Stack sx={{ height: "100%" }}>
         <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", p: 2 }}>
@@ -126,40 +104,7 @@ export default function CandidateQuickView({
               </Stack>
             )}
 
-            <Stack spacing={1}>
-              <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center" }}>
-                <Typography sx={{ fontWeight: 700 }}>CV preview</Typography>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={<DownloadOutlinedIcon fontSize="small" />}
-                  disabled={!cv}
-                  component="a"
-                  href={cv?.url}
-                  download={cv?.filename}
-                >
-                  Download
-                </Button>
-              </Stack>
-              {cvLoading ? (
-                <Stack sx={{ alignItems: "center", py: 4 }}>
-                  <CircularProgress size={24} />
-                </Stack>
-              ) : cvError ? (
-                <Alert severity="info">No CV on file for this candidate.</Alert>
-              ) : cv ? (
-                <iframe
-                  title="CV preview"
-                  // Browser-native PDF viewer open-parameters — no
-                  // thumbnail/outline side panel, fit-to-width zoom.
-                  // navpanes/view are Chromium's names, pagemode/zoom are
-                  // Firefox pdf.js's; harmless if the other browser
-                  // ignores the ones it doesn't recognize.
-                  src={`${cv.url}#navpanes=0&pagemode=none&view=FitH&zoom=page-width`}
-                  style={{ width: "100%", height: 480, border: "none", borderRadius: 12 }}
-                />
-              ) : null}
-            </Stack>
+            <CvPreviewPanel candidateId={currentId} />
           </Stack>
         )}
       </Stack>
