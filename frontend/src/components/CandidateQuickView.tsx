@@ -198,7 +198,12 @@ export default function CandidateQuickView({
               ) : cv ? (
                 <iframe
                   title="CV preview"
-                  src={cv.url}
+                  // Browser-native PDF viewer open-parameters — no
+                  // thumbnail/outline side panel, fit-to-width zoom.
+                  // navpanes/view are Chromium's names, pagemode/zoom are
+                  // Firefox pdf.js's; harmless if the other browser
+                  // ignores the ones it doesn't recognize.
+                  src={`${cv.url}#navpanes=0&pagemode=none&view=FitH&zoom=page-width`}
                   style={{ width: "100%", height: 480, border: "none", borderRadius: 12 }}
                 />
               ) : null}
