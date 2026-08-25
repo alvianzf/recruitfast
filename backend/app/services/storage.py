@@ -25,6 +25,10 @@ def sha256_of_file(path: Path) -> str:
     return h.hexdigest()
 
 
+def sha256_of_bytes(content: bytes) -> str:
+    return hashlib.sha256(content).hexdigest()
+
+
 def save_temp(upload_bytes: bytes, original_filename: str) -> tuple[str, Path]:
     """Save an uploaded file to temp storage for the preview step.
 

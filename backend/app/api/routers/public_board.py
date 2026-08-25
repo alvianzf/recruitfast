@@ -1,3 +1,4 @@
+import asyncio
 import json
 import uuid
 
@@ -180,7 +181,10 @@ async def apply_to_job(
         parsed_fields, parse_confidence = {}, {}
         try:
             text = extract_text(temp_path)
-            parsed_fields, parse_confidence, _status = parse_cv_text(text)
+            # See candidates.py's cv_parse_preview for why this is
+            # offloaded to a thread — the LLM tier is a blocking call
+            # that can take tens of seconds.
+            parsed_fields, parse_confidence, _status = await asyncio.to_thread(parse_cv_text, text)
         except (UnsupportedFileType, Exception):
             pass  # never block a public application on a parse failure
 

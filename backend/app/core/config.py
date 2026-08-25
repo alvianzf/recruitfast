@@ -16,5 +16,13 @@ class Settings(BaseSettings):
     # dev server works regardless of which host the frontend binds to.
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
+    # Optional LLM-based CV parsing layer (see app/services/llm_cv_parser.py
+    # and docs/04-cv-parser.md). None/empty disables it entirely and the
+    # app falls back to the rule-based parser only — this is not a
+    # required credential for the app to run.
+    llm_api_key: str | None = None
+    llm_base_url: str = "https://ai.sumopod.com/v1"
+    llm_model: str = "gemini/gemini-3.1-flash-lite"
+
 
 settings = Settings()

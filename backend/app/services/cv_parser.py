@@ -1,21 +1,27 @@
 """CV text extraction + structured field parsing.
 
-Implements the deterministic layer of the pipeline in
-docs/04-cv-parser.md, in two tiers:
+Three tiers, tried in order by `parse_cv_text`:
 
+0. **LLM extraction** (`app/services/llm_cv_parser.py`): when
+   `settings.llm_api_key` is set, a hosted-model call does the semantic
+   extraction docs/04 originally scoped for a local SLM — this is a
+   deliberate departure from the "no external API, self-hosted only"
+   architecture decision recorded there and in docs/08, added at explicit
+   product direction with a real key, not something this module defaults
+   to silently preferring in every deployment. Disabled entirely (falls
+   through to tier 1) when no key is configured.
 1. **Labeled-format parser** (`_try_labeled_format`): resume summary sheets
    that use explicit field labels (`NAME`, `POSITION`, `TECHNICAL SKILLS`,
    `MAIN PROJECTS`, ...) can be parsed field-by-field with high confidence
    — no NER/SLM needed, the labels ARE the structure. This is a real,
    accurate parse when the format matches, not a heuristic.
 2. **Generic fallback** (regex email/phone + first-plausible-line name):
-   used when the labeled format isn't detected. Low confidence by design.
+   used when the labeled format isn't detected and the LLM tier is
+   disabled or fails. Low confidence by design.
 
-The semantic layer described in docs/04 for *unstructured* free-text
-resumes (a local SLM extracting summary/skills/education/projects from
-prose) is genuinely not implemented — that's a real gap versus the full
-spec, not something this module fakes. Sections it can't fill stay empty
-with `parse_status = "needs_review"`.
+Sections a given tier can't fill stay empty with
+`parse_status = "needs_review"` — every parse routes to review regardless
+of tier; nothing auto-promotes to `confirmed` yet.
 
 `.doc` (legacy binary Word) is not supported — no pure-Python parser
 exists for it (docs/04 specifies a LibreOffice-headless conversion step
@@ -310,10 +316,28 @@ def _try_labeled_format(text: str) -> dict[str, Any] | None:
 def parse_cv_text(text: str) -> tuple[dict[str, Any], dict[str, Any], str]:
     """Returns (parsed_fields, parse_confidence, parse_status).
 
-    Shape matches docs/04-cv-parser.md's parsed_fields schema.
+    Shape matches docs/04-cv-parser.md's parsed_fields schema. Tries the
+    LLM semantic layer first (app/services/llm_cv_parser.py) when
+    configured — a real departure from this module's original
+    deterministic-only design, added at explicit product direction. Email/
+    phone always come from the regex extraction below regardless of which
+    tier ran, since the LLM prompt deliberately isn't asked for them.
     """
     email_match = EMAIL_RE.search(text)
     phone = _find_phone(text)
+
+    from app.services.llm_cv_parser import parse_cv_with_llm  # local import: openai is optional infra, not a hard dependency of this module
+
+    llm_result = parse_cv_with_llm(text)
+    if llm_result is not None:
+        llm_fields, llm_confidence = llm_result
+        parsed_fields = {**llm_fields, "email": email_match.group(0) if email_match else None, "phone": phone}
+        parse_confidence = {
+            **llm_confidence,
+            "email": 0.95 if email_match else 0.0,
+            "phone": 0.85 if phone else 0.0,
+        }
+        return parsed_fields, parse_confidence, "needs_review"
 
     labeled = _try_labeled_format(text)
 

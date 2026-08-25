@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
@@ -165,8 +166,29 @@ async def cv_parse_preview(
         temp_id, temp_path = storage.save_temp(content, filename)
 
         try:
-            text = extract_text(temp_path)
-            parsed_fields, parse_confidence, parse_status_value = parse_cv_text(text)
+            # Same file re-uploaded (by content hash, not filename) reuses
+            # the prior parse instead of paying for another LLM call — the
+            # checksum is already how commit-time dedup works
+            # (documents.checksum_sha256), just checked earlier here.
+            checksum = storage.sha256_of_bytes(content)
+            reused = (
+                db.query(CandidateDocument)
+                .join(Document, Document.id == CandidateDocument.file_id)
+                .filter(Document.checksum_sha256 == checksum, Document.tenant_id == uuid.UUID(current_user.tenant_id))
+                .order_by(CandidateDocument.created_at.desc())
+                .first()
+            )
+            if reused is not None:
+                parsed_fields = reused.parsed_fields
+                parse_confidence = reused.parse_confidence
+                parse_status_value = reused.parse_status.value
+            else:
+                text = extract_text(temp_path)
+                # parse_cv_text may call the LLM tier, a blocking network
+                # call that can legitimately take tens of seconds — run it
+                # in a worker thread so it doesn't stall the event loop
+                # (and every other in-flight request) for the duration.
+                parsed_fields, parse_confidence, parse_status_value = await asyncio.to_thread(parse_cv_text, text)
         except UnsupportedFileType as exc:
             items.append(CVPreviewItem(temp_id=temp_id, filename=filename, parse_status="failed", error=str(exc)))
             continue
