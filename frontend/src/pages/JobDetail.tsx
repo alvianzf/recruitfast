@@ -77,7 +77,7 @@ export default function JobDetail() {
 
   return (
     <Stack spacing={2}>
-      <Breadcrumbs items={[{ label: "Jobs", to: "/jobs" }, { label: job.title }]} />
+      <Breadcrumbs items={[{ label: "Jobs", to: "/app/jobs" }, { label: job.title }]} />
       <PageHeader
         title={job.title}
         action={{

@@ -6,7 +6,7 @@ import { useAuth } from "./AuthContext";
 export default function RoleRoute({ roles, children }: { roles: string[]; children: ReactNode }) {
   const { user } = useAuth();
   if (!user || !roles.includes(user.role)) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/app/dashboard" replace />;
   }
   return <>{children}</>;
 }

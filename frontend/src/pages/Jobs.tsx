@@ -105,7 +105,7 @@ export default function Jobs() {
           density="comfortable"
           pageSizeOptions={[20, 50, 100]}
           initialState={{ pagination: { paginationModel: { pageSize: 20 } } }}
-          onRowClick={(params) => navigate(`/jobs/${params.id}`)}
+          onRowClick={(params) => navigate(`/app/jobs/${params.id}`)}
           sx={{ border: "none", "& .MuiDataGrid-row": { cursor: "pointer" } }}
           slots={{
             toolbar: GridToolbar,

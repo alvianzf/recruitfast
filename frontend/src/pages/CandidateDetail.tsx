@@ -8,10 +8,6 @@ import {
   Button,
   Chip,
   CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   Divider,
   FormControlLabel,
   Grid,
@@ -23,7 +19,6 @@ import {
   Radio,
   RadioGroup,
   Stack,
-  Switch,
   TextField,
   Typography,
 } from "@mui/material";
@@ -34,21 +29,17 @@ import MoreVertIcon from "@mui/icons-material/MoreVert";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlined";
 
-import {
-  useCandidate,
-  useDeleteCandidate,
-  useUpdateCandidate,
-  type CandidateDetail,
-  type CandidateUpdateInput,
-} from "../api/candidates";
+import { useCandidate } from "../api/candidates";
 import { useAddCandidateNote, useCandidateNotes } from "../api/notes";
-import { useBlacklistCandidate } from "../api/pipeline";
 import { useBlacklistStatuses } from "../api/blacklist";
 import Breadcrumbs from "../components/Breadcrumbs";
 import PageHeader from "../components/PageHeader";
 import BlacklistBadge from "../components/BlacklistBadge";
 import ParsedDataTable from "../components/ParsedDataTable";
 import CvPreviewPanel from "../components/CvPreviewPanel";
+import BlacklistCandidateDialog from "../components/BlacklistCandidateDialog";
+import EditCandidateDialog from "../components/EditCandidateDialog";
+import DeleteCandidateDialog from "../components/DeleteCandidateDialog";
 
 function InfoRow({ label, value }: { label: string; value: string | null }) {
   if (!value) return null;
@@ -129,182 +120,10 @@ function NotesPanel({ candidateId }: { candidateId: string }) {
   );
 }
 
-function BlacklistDialog({
-  candidateId,
-  open,
-  onClose,
-}: {
-  candidateId: string;
-  open: boolean;
-  onClose: () => void;
-}) {
-  const blacklist = useBlacklistCandidate();
-  const [reason, setReason] = useState("");
-
-  async function handleConfirm() {
-    if (!reason.trim()) return;
-    await blacklist.mutateAsync({ candidateId, reason });
-    setReason("");
-    onClose();
-  }
-
-  return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle sx={{ fontWeight: 700 }}>Blacklist this candidate</DialogTitle>
-      <DialogContent>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          This flags the candidate as do-not-contact in your org, and files the email in the
-          platform-wide blacklist registry so other recruiters are warned if this person applies
-          elsewhere.
-        </Typography>
-        <TextField
-          label="Reason"
-          required
-          multiline
-          minRows={2}
-          fullWidth
-          autoFocus
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-        />
-      </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 3 }}>
-        <Button onClick={onClose} color="inherit">
-          Cancel
-        </Button>
-        <Button
-          variant="contained"
-          color="error"
-          disabled={!reason.trim() || blacklist.isPending}
-          onClick={handleConfirm}
-        >
-          {blacklist.isPending ? "Blacklisting…" : "Blacklist"}
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
-}
-
-function EditCandidateDialog({
-  candidate,
-  open,
-  onClose,
-}: {
-  candidate: CandidateDetail;
-  open: boolean;
-  onClose: () => void;
-}) {
-  const update = useUpdateCandidate(candidate.id);
-  const [form, setForm] = useState<CandidateUpdateInput>({
-    full_name: candidate.full_name,
-    email: candidate.email ?? "",
-    phone: candidate.phone ?? "",
-    source: candidate.source ?? "",
-    current_position: candidate.current_position ?? "",
-    total_years_experience: candidate.total_years_experience ?? "",
-    linkedin_url: candidate.linkedin_url ?? "",
-    github_url: candidate.github_url ?? "",
-    portfolio_url: candidate.portfolio_url ?? "",
-    open_to_other_roles: candidate.open_to_other_roles,
-  });
-
-  function field(key: keyof CandidateUpdateInput) {
-    return {
-      value: (form[key] as string) ?? "",
-      onChange: (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [key]: e.target.value })),
-    };
-  }
-
-  async function handleSave() {
-    if (!form.full_name?.trim()) return;
-    await update.mutateAsync(form);
-    onClose();
-  }
-
-  return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle sx={{ fontWeight: 700 }}>Edit candidate</DialogTitle>
-      <DialogContent>
-        <Stack spacing={2.5} sx={{ mt: 1 }}>
-          <TextField label="Full name" required fullWidth autoFocus {...field("full_name")} />
-          <TextField label="Email" type="email" fullWidth {...field("email")} />
-          <TextField label="Phone" fullWidth {...field("phone")} />
-          <TextField label="Source" fullWidth {...field("source")} />
-          <TextField label="Position" fullWidth {...field("current_position")} />
-          <TextField label="Years of experience" fullWidth {...field("total_years_experience")} />
-          <TextField label="LinkedIn URL" fullWidth {...field("linkedin_url")} />
-          <TextField label="GitHub URL" fullWidth {...field("github_url")} />
-          <TextField label="Portfolio URL" fullWidth {...field("portfolio_url")} />
-          <Stack>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={!!form.open_to_other_roles}
-                  onChange={(e) => setForm((f) => ({ ...f, open_to_other_roles: e.target.checked }))}
-                />
-              }
-              label="Open Profile"
-            />
-            <Typography variant="caption" color="text.secondary">
-              Visible to every recruiter in every organization, not just this tenant/team — the same
-              cross-tenant sharing a candidate can opt into themselves via the public application form.
-            </Typography>
-          </Stack>
-        </Stack>
-      </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 3 }}>
-        <Button onClick={onClose} color="inherit">
-          Cancel
-        </Button>
-        <Button variant="contained" disabled={!form.full_name?.trim() || update.isPending} onClick={handleSave}>
-          {update.isPending ? "Saving…" : "Save"}
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
-}
-
-function DeleteCandidateDialog({
-  candidate,
-  open,
-  onClose,
-}: {
-  candidate: CandidateDetail;
-  open: boolean;
-  onClose: () => void;
-}) {
-  const deleteCandidate = useDeleteCandidate();
-  const navigate = useNavigate();
-
-  async function handleConfirm() {
-    await deleteCandidate.mutateAsync(candidate.id);
-    navigate("/candidates");
-  }
-
-  return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle sx={{ fontWeight: 700 }}>Delete {candidate.full_name}?</DialogTitle>
-      <DialogContent>
-        <Typography variant="body2" color="text.secondary">
-          This removes the candidate from every list and pipeline view. This can't be undone from the
-          UI.
-        </Typography>
-      </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 3 }}>
-        <Button onClick={onClose} color="inherit">
-          Cancel
-        </Button>
-        <Button variant="contained" color="error" disabled={deleteCandidate.isPending} onClick={handleConfirm}>
-          {deleteCandidate.isPending ? "Deleting…" : "Delete"}
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
-}
-
 export default function CandidateDetail() {
   const { candidateId = "" } = useParams();
   const { data: candidate, isLoading } = useCandidate(candidateId);
+  const navigate = useNavigate();
   const [blacklistOpen, setBlacklistOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -324,7 +143,7 @@ export default function CandidateDetail() {
 
   return (
     <Stack spacing={2}>
-      <Breadcrumbs items={[{ label: "Candidates", to: "/candidates" }, { label: candidate.full_name }]} />
+      <Breadcrumbs items={[{ label: "Candidates", to: "/app/candidates" }, { label: candidate.full_name }]} />
       <PageHeader title={candidate.full_name}>
         <BlacklistBadge status={elsewhereStatus} />
         <IconButton onClick={(e) => setMenuAnchor(e.currentTarget)}>
@@ -469,9 +288,14 @@ export default function CandidateDetail() {
         </Grid>
       </Grid>
 
-      <BlacklistDialog candidateId={candidateId} open={blacklistOpen} onClose={() => setBlacklistOpen(false)} />
+      <BlacklistCandidateDialog candidateId={candidateId} open={blacklistOpen} onClose={() => setBlacklistOpen(false)} />
       <EditCandidateDialog candidate={candidate} open={editOpen} onClose={() => setEditOpen(false)} />
-      <DeleteCandidateDialog candidate={candidate} open={deleteOpen} onClose={() => setDeleteOpen(false)} />
+      <DeleteCandidateDialog
+        candidate={candidate}
+        open={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        onDeleted={() => navigate("/app/candidates")}
+      />
     </Stack>
   );
 }

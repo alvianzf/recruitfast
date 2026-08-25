@@ -12,20 +12,25 @@ import AdminFreelanceQueue from "./pages/AdminFreelanceQueue";
 import OrgRecruiters from "./pages/OrgRecruiters";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import Landing from "./pages/public/Landing";
 import CareersBoard from "./pages/public/CareersBoard";
 import ApplyPage from "./pages/public/ApplyPage";
 import OpenProfiles from "./pages/OpenProfiles";
 
+// Authenticated product lives under /app/* — kept distinct from the
+// public surface (/, /careers/*, /apply/*, /login, /register) so the
+// root path can be a marketing landing page rather than the dashboard.
 export default function App() {
   return (
     <Routes>
+      <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/careers/public" element={<CareersBoard freelance />} />
       <Route path="/careers/:slug" element={<CareersBoard />} />
       <Route path="/apply/:jobId" element={<ApplyPage />} />
       <Route
-        path="/"
+        path="/app/dashboard"
         element={
           <ProtectedRoute>
             <AppShell>
@@ -35,7 +40,7 @@ export default function App() {
         }
       />
       <Route
-        path="/jobs"
+        path="/app/jobs"
         element={
           <ProtectedRoute>
             <AppShell>
@@ -45,7 +50,7 @@ export default function App() {
         }
       />
       <Route
-        path="/jobs/:jobId"
+        path="/app/jobs/:jobId"
         element={
           <ProtectedRoute>
             <AppShell>
@@ -55,7 +60,7 @@ export default function App() {
         }
       />
       <Route
-        path="/candidates"
+        path="/app/candidates"
         element={
           <ProtectedRoute>
             <AppShell>
@@ -65,7 +70,7 @@ export default function App() {
         }
       />
       <Route
-        path="/candidates/:candidateId"
+        path="/app/candidates/:candidateId"
         element={
           <ProtectedRoute>
             <AppShell>
@@ -75,7 +80,7 @@ export default function App() {
         }
       />
       <Route
-        path="/admin/freelance-queue"
+        path="/app/admin/freelance-queue"
         element={
           <ProtectedRoute>
             <RoleRoute roles={["superadmin"]}>
@@ -87,7 +92,7 @@ export default function App() {
         }
       />
       <Route
-        path="/open-profiles"
+        path="/app/open-profiles"
         element={
           <ProtectedRoute>
             <AppShell>
@@ -97,7 +102,7 @@ export default function App() {
         }
       />
       <Route
-        path="/org/recruiters"
+        path="/app/org/recruiters"
         element={
           <ProtectedRoute>
             <RoleRoute roles={["org_admin"]}>

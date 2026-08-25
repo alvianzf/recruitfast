@@ -30,23 +30,23 @@ import { useAuth } from "../auth/AuthContext";
 import Logo from "./Logo";
 
 const RECRUITER_NAV_ITEMS = [
-  { label: "Dashboard", path: "/", icon: DashboardOutlinedIcon, activeIcon: DashboardIcon },
-  { label: "Jobs", path: "/jobs", icon: WorkOutlinedIcon, activeIcon: WorkIcon },
-  { label: "Candidates", path: "/candidates", icon: PeopleOutlinedIcon, activeIcon: PeopleIcon },
-  { label: "Open Profiles", path: "/open-profiles", icon: PublicOutlinedIcon, activeIcon: PublicIcon },
+  { label: "Dashboard", path: "/app/dashboard", icon: DashboardOutlinedIcon, activeIcon: DashboardIcon },
+  { label: "Jobs", path: "/app/jobs", icon: WorkOutlinedIcon, activeIcon: WorkIcon },
+  { label: "Candidates", path: "/app/candidates", icon: PeopleOutlinedIcon, activeIcon: PeopleIcon },
+  { label: "Open Profiles", path: "/app/open-profiles", icon: PublicOutlinedIcon, activeIcon: PublicIcon },
 ];
 
 const ORG_ADMIN_NAV_ITEMS = [
   ...RECRUITER_NAV_ITEMS,
-  { label: "Recruiters", path: "/org/recruiters", icon: BadgeOutlinedIcon, activeIcon: BadgeIcon },
+  { label: "Recruiters", path: "/app/org/recruiters", icon: BadgeOutlinedIcon, activeIcon: BadgeIcon },
 ];
 
 // Superadmin has no navigation path into job/candidate content at all —
 // not hidden by convention, the screens genuinely aren't reachable from
 // here. See docs/06-ui-design-system.md#confidentiality-aware-ui-patterns.
 const SUPERADMIN_NAV_ITEMS = [
-  { label: "Dashboard", path: "/", icon: DashboardOutlinedIcon, activeIcon: DashboardIcon },
-  { label: "Freelance Queue", path: "/admin/freelance-queue", icon: HowToRegOutlinedIcon, activeIcon: HowToRegIcon },
+  { label: "Dashboard", path: "/app/dashboard", icon: DashboardOutlinedIcon, activeIcon: DashboardIcon },
+  { label: "Freelance Queue", path: "/app/admin/freelance-queue", icon: HowToRegOutlinedIcon, activeIcon: HowToRegIcon },
 ];
 
 const ROLE_LABEL: Record<string, string> = {

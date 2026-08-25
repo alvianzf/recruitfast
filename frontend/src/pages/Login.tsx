@@ -32,7 +32,7 @@ export default function Login() {
     setServerError(null);
     try {
       await login(values.email, values.password);
-      const from = (location.state as { from?: Location })?.from?.pathname ?? "/";
+      const from = (location.state as { from?: Location })?.from?.pathname ?? "/app/dashboard";
       navigate(from, { replace: true });
     } catch (err) {
       if (isAxiosError(err) && err.response?.data?.detail) {
