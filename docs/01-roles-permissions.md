@@ -10,7 +10,15 @@
   recruiter registrations.
 - Manage billing: plans, subscriptions, invoices, usage-based limits.
 - View platform-wide **aggregate** metrics (counts, trends) — never
-  record-level content.
+  record-level content. **Implemented today:** tenant/recruiter/queue
+  counts only (`GET /metrics/platform`). Job/candidate aggregate counts
+  (e.g. "total open jobs platform-wide") are **not yet reachable** — the
+  `jobs`/`candidates` RLS policy excludes the superadmin role entirely
+  (by design, see [02-data-model.md](02-data-model.md)), so even a bare
+  `COUNT(*)` needs a dedicated aggregate mechanism (a `SECURITY DEFINER`
+  function or materialized view) that doesn't exist yet. This is a known,
+  commented gap, not an oversight — see
+  [08-open-questions-and-gaps.md](08-open-questions-and-gaps.md).
 - Configure system-level defaults (default pipeline template, global custom
   field types, stage-name defaults).
 - Triage support tickets and, only through **Assisted Access** (below),
@@ -35,6 +43,13 @@ a **time-boxed** (default 24h) RLS grant is applied, and the access itself
 is logged to the org-tier audit log the recruiter/admin can see. There is no
 standing "login as user" impersonation path.
 
+**Status: schema-only, not yet implemented.** The `AssistedAccessRequest`
+model exists (`backend/app/models/access.py`) but there is no API router
+for it — no endpoint files/approves/lists a request, and nothing ever
+grants the corresponding RLS access. This whole flow is designed but not
+built; see [02-data-model.md](02-data-model.md) and
+[08-open-questions-and-gaps.md](08-open-questions-and-gaps.md).
+
 ### Org Admin (one org tenant)
 
 **Can:**
@@ -43,17 +58,23 @@ standing "login as user" impersonation path.
   and stage history in their org — this is the point of the role.
 - Assign new jobs to a recruiter, or leave them in an "Unassigned Jobs"
   queue recruiters self-claim from.
-- Bulk-reassign all open jobs from one recruiter to another (recruiter
-  leaves/is out) — first-class action, not a manual one-by-one fix.
+- Bulk-reassign all of one recruiter's jobs to another (recruiter
+  leaves/is out) — first-class action, not a manual one-by-one fix. This
+  moves jobs of any status (open, on-hold, won, lost), not just open
+  ones.
 - Group recruiters into **Teams** and filter the org dashboard's charts —
   including a per-recruiter performance breakdown — by team. See
   [05-dashboards-metrics.md](05-dashboards-metrics.md).
 - Edit org-wide pipeline templates, custom field definitions, and org
   billing/seat count (within Superadmin-set plan limits).
 - Override a candidate's pipeline stage directly. This is allowed, but is
-  never silent: it's logged as an `admin_override` audit entry visible to
-  the owning recruiter, and the UI shows a distinct "changed by Admin"
-  marker on the card.
+  never silent: the resulting `stage_history` row is flagged
+  `was_admin_override = true`, which the UI reads to show a distinct
+  "changed by Admin" marker on the card. (This is a per-row flag today,
+  not a write to the separate `audit_log_org` table described below under
+  "Audit log tiering" — that table exists in the schema but nothing
+  currently writes to it; see
+  [08-open-questions-and-gaps.md](08-open-questions-and-gaps.md).)
 
 **Cannot:**
 - See another org's data (tenant isolation via RLS, same mechanism as
@@ -85,12 +106,25 @@ standing "login as user" impersonation path.
 
 **Cannot:**
 - See another recruiter's private notes.
-- See another org's or another Freelance Org member's data. Within the
-  Freelance Org, candidate records are visible org-wide (freelancers share
-  one candidate pool) but job/client details a freelancer marks
-  confidential stay scoped to them — see
-  [08-open-questions-and-gaps.md](08-open-questions-and-gaps.md) for the
-  conflict-of-interest flag between competing freelancers.
+- See another org's or another Freelance Org member's data. **Candidates
+  a freelancer uploads or receives applications for are private to them
+  by default** — a different freelancer in the same Freelance Org tenant
+  cannot see, list, or fetch that candidate record, even though they
+  share the same `tenant_id`. This is enforced by RLS via a new
+  `candidates.owner_user_id` column and an `app.user_id` session GUC (see
+  [02-data-model.md](02-data-model.md)), not just app-level filtering.
+  There is currently no "share this candidate with my fellow freelancers"
+  toggle — privacy is the only mode, not a default that can be turned
+  off. This is unrelated to, and doesn't affect, the separate
+  cross-*tenant* Open Profiles opt-in (`open_to_other_roles`) a candidate
+  sets for themselves at public-application time.
+  Jobs are **not** covered by this — every Freelance Org job is still
+  visible to every freelancer in that tenant, same as an Org tenant's
+  jobs are to its recruiters. A per-job "mark confidential" capability
+  for freelancers is aspirational — no such field exists on `Job` today.
+  See [08-open-questions-and-gaps.md](08-open-questions-and-gaps.md) for
+  the conflict-of-interest flag between competing freelancers, now
+  including the job-level gap alongside the (now-solved) candidate one.
 
 ### Freelance Recruiter
 
@@ -112,7 +146,7 @@ there*: self-registration + Superadmin approval, below.
 | Edit pipeline template (org-wide) | ❌ | ✅ | ❌ (per-job only) |
 | Override a candidate's stage | ❌ | ✅ (logged) | ✅ (own work) |
 | Read another recruiter's private notes | ❌ | ❌ | ❌ |
-| View platform aggregate metrics | ✅ | Own org only | ❌ |
+| View platform aggregate metrics | Tenant/recruiter counts only (job/candidate counts not yet reachable) | Own org only | ❌ |
 
 ## Freelance recruiter registration flow
 

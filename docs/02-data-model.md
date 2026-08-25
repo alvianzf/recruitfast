@@ -14,8 +14,9 @@ migrations once implementation starts for exact constraints/indexes.
 - All primary keys are UUIDv7 (`gen_random_uuid()` acceptable at build
   time; UUIDv7 preferred for index locality once available).
 - `created_at` / `updated_at` on every table (trigger-maintained).
-- Soft-delete (`deleted_at nullable`) on tenant, user, job, candidate —
-  hard deletes only via the GDPR erasure flow (P2).
+- Soft-delete (`deleted_at nullable`) on user, job, candidate — hard
+  deletes only via the GDPR erasure flow (P2). `tenants` has no
+  `deleted_at`; deactivation there is `status = 'suspended'` instead.
 
 ## Core tables
 
@@ -25,6 +26,7 @@ migrations once implementation starts for exact constraints/indexes.
 | id | uuid PK | |
 | type | enum(`org`, `freelance_org`) | exactly one row has type=`freelance_org` |
 | name | text | |
+| slug | text, unique, nullable | public job board URL segment (`/careers/{slug}`); null for the Freelance Org, which uses the fixed `/careers/public` route instead. Collision-resolved by appending 6 random lowercase alphanumeric chars. See [10-job-board-and-applications.md](10-job-board-and-applications.md). |
 | status | enum(`active`, `suspended`) | |
 | plan_id | uuid FK → `plans` | nullable until billing set up |
 
@@ -39,7 +41,21 @@ migrations once implementation starts for exact constraints/indexes.
 | password_hash | text | |
 | status | enum(`pending_approval`, `active`, `deactivated`) | freelance recruiters start `pending_approval` |
 | specialization_tags | text[] | set during onboarding |
+| team_id | uuid FK → `teams`, nullable | see `teams` below; not RLS-scoped, same as the rest of `users` |
 | created_at, updated_at, deleted_at | | |
+
+### `teams`
+Org Admin groups recruiters for reporting — an ordinary, tenant-isolated
+table (standard RLS policy, not a cross-tenant exception). Deleting a team
+nulls out `users.team_id` for its members rather than touching their
+jobs/candidates.
+
+| column | type | notes |
+|---|---|---|
+| id | uuid PK | |
+| tenant_id | uuid FK → tenants | RLS-scoped |
+| name | text | |
+| created_at, updated_at | | |
 
 ### `jobs`
 | column | type | notes |
@@ -53,6 +69,8 @@ migrations once implementation starts for exact constraints/indexes.
 | jd_file_id | uuid FK → `documents`, nullable | uploaded JD file |
 | custom_fields | jsonb | org-defined schema, validated app-side |
 | status | enum(`open`, `on_hold`, `won`, `lost`) | `won`/`lost` — sales-deal framing (closed with a hire vs. fell through), not generic "filled/cancelled". See [03-pipelines-and-boards.md](03-pipelines-and-boards.md). |
+| visibility | enum(`public`, `unlisted`) default `public` | `unlisted` jobs don't appear in board listings but are directly reachable by link; both still require `status = 'open'` to be publicly visible. See [10-job-board-and-applications.md](10-job-board-and-applications.md). |
+| is_technical_role | bool default false | gates whether the public application form defaults to asking for a GitHub URL |
 | pipeline_template_id | uuid FK → `pipeline_templates` | template it was cloned from, for reference only |
 
 ### `pipeline_templates`
@@ -98,13 +116,16 @@ job so one candidate can sit in multiple pipelines.
 |---|---|---|
 | id | uuid PK | |
 | tenant_id | uuid FK | |
+| owner_user_id | uuid FK → users, nullable | who created this record; only restricts visibility within the Freelance Org — see below |
 | full_name | text | |
 | email | citext | indexed, used for dedup matching |
 | phone | text | normalized (E.164), indexed |
 | source | text | how they entered (upload, manual, referral) |
 | current_position | text, nullable | denormalized from the current `candidate_documents.parsed_fields.position`, kept in sync on parse/edit — avoids parsing JSONB on every list/table row. See [04-cv-parser.md](04-cv-parser.md#parsed-field-schema-candidate_documentsparsed_fields). |
 | total_years_experience | text, nullable | same denormalization rationale as `current_position` |
-| blacklisted | bool default false | org-wide "Do Not Contact" flag — see below |
+| linkedin_url, github_url, portfolio_url | text, nullable | collected on the public application form; `github_url` only asked for when `jobs.is_technical_role` |
+| open_to_other_roles | bool default false | candidate opt-in, set at public application time — the sole gate for the cross-tenant RLS exception on this table, see below |
+| blacklisted | bool default false | per-tenant "Do Not Contact" flag — see below |
 | blacklist_reason | text, nullable | required when blacklisted=true |
 | dedup_fingerprint | text | hash of normalized email+phone+name, indexed, used for the duplicate-candidate prompt |
 
@@ -124,9 +145,9 @@ twice for the same role: show both CVs in one row."
 | is_current | bool | exactly one `true` per (candidate_id, job_id) pair — the version shown by default |
 | parsed_fields | jsonb | structured CV Parser output for *this* document — canonical shape (name, position, summary, total_years_experience, technical_skills, education, certifications, main_projects) documented in [04-cv-parser.md](04-cv-parser.md#parsed-field-schema-candidate_documentsparsed_fields) |
 | parse_confidence | jsonb | per-field confidence scores, same shape as `parsed_fields` (array items scored individually), see [04-cv-parser.md](04-cv-parser.md#parsed-field-schema-candidate_documentsparsed_fields) |
-| parse_status | enum(`pending`, `needs_review`, `confirmed`, `failed`) | |
+| parse_status | enum(`pending`, `needs_review`, `confirmed`, `failed`) | current parser always produces `needs_review` — there's no confidence threshold that auto-promotes to `confirmed` yet, see [04-cv-parser.md](04-cv-parser.md) |
 | uploaded_by | uuid FK → users | |
-| uploaded_at | timestamptz | |
+| created_at | timestamptz | upload timestamp (from the shared timestamp mixin, not a separate `uploaded_at` column) |
 
 **Reapplication behavior:** when a candidate is added to a job pipeline
 they're already in (or a new CV is uploaded for a job they're already
@@ -186,11 +207,31 @@ at write time.
 | body | text | |
 | visibility | enum(`team`, `private`) | default `team` |
 
-### `blacklist` (org-wide, distinct from per-job rejection)
-Implemented as the `candidates.blacklisted` flag above rather than a
-separate table — kept here as a callout because it's a deliberately
-**separate action** from moving a card to the Reject stage in one job's
-pipeline. See [03-pipelines-and-boards.md](03-pipelines-and-boards.md).
+### Blacklist (two-tier — distinct from per-job rejection)
+Blacklisting a candidate is a deliberately **separate action** from moving
+a card to the Reject stage in one job's pipeline (see
+[03-pipelines-and-boards.md](03-pipelines-and-boards.md)), and it writes
+to two places:
+
+1. **`candidates.blacklisted` / `blacklist_reason`** (per-tenant) — the
+   flag above, scoped to the tenant that blacklisted the candidate.
+2. **`email_blacklist_entries`** (platform-wide, append-only) — filed
+   automatically whenever (1) happens, so a recruiter at a *different*
+   tenant is warned if the same email applies elsewhere.
+
+| column | type | notes |
+|---|---|---|
+| id | uuid PK | |
+| email | citext, indexed | not unique — one email can accumulate multiple entries from different tenants |
+| reason | text | required, non-empty |
+| tenant_id | uuid FK → tenants | the filing tenant, kept for audit only — **never serialized in API responses** |
+| created_at, updated_at | | |
+
+This table is deliberately **not** RLS-protected (see
+[Row-Level Security model](#row-level-security-rls-model)) — the API only
+ever returns `reason` + `created_at` to callers, never `tenant_id`, so
+which org filed an entry stays private even though the row itself is
+readable platform-wide.
 
 ### `freelance_applications`
 | column | type | notes |
@@ -238,6 +279,42 @@ Generic file storage record shared by JD uploads and CV uploads.
 | original_filename | text | |
 | checksum_sha256 | text | also feeds dedup/duplicate-CV detection |
 
+### `job_screening_questions`
+Recruiter-authored elimination questions on the public application form.
+Full behavior (freelance 4-question cap, org unlimited) in
+[10-job-board-and-applications.md](10-job-board-and-applications.md).
+
+| column | type | notes |
+|---|---|---|
+| id | uuid PK | |
+| tenant_id | uuid FK | RLS-scoped |
+| job_id | uuid FK → jobs | |
+| question_text | text | |
+| expected_answer | text | never exposed to public applicants — only the question text is |
+| position | int | display order |
+| created_at, updated_at | | |
+
+### `job_applications`
+One row per public application submitted via the job board.
+
+| column | type | notes |
+|---|---|---|
+| id | uuid PK | |
+| tenant_id | uuid FK | RLS-scoped |
+| job_id | uuid FK → jobs | |
+| candidate_id | uuid FK → candidates | |
+| cover_letter | text, nullable | |
+| answers | jsonb default `[]` | snapshot of question/answer pairs at submission time |
+| eligible | bool default true | case-insensitive exact-match against every question's `expected_answer` |
+| placement_id | uuid FK → pipeline_placements, nullable | set automatically when eligible, or via manual "mark eligible" promotion |
+| created_at, updated_at | | |
+
+### `candidate_import_batches`
+Tracks one CSV/Excel bulk-import run for auditability (who imported, when,
+how many rows succeeded/warned/errored). See
+[09-candidate-intake.md](09-candidate-intake.md) — backend-only today, no
+frontend UI yet.
+
 ## Row-Level Security (RLS) model
 
 Postgres RLS is the enforcement point for the confidentiality guarantee —
@@ -246,21 +323,50 @@ not sufficient (a direct API call, an export job, or a backup restore must
 not be able to bypass it).
 
 - Implemented (see `backend/alembic/versions/0002_row_level_security.py`,
-  amended by `0009_nullif_safe_rls_policies.py` — see gotcha below):
+  amended by `0006_job_board_and_applications.py` and
+  `0009_nullif_safe_rls_policies.py` — see gotcha below):
   every RLS-scoped table (`jobs`, `candidates`, `job_stages`,
   `pipeline_placements`, `stage_history`, `notes`, `candidate_documents`,
-  `documents`, `job_screening_questions`, `job_applications`) gets one
-  policy: `current_setting('app.role', true) IS DISTINCT FROM 'superadmin'
-  AND tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid`.
-  The API connects as a single DB role and sets `app.role`/`app.tenant_id`
-  per request via `set_config(..., true)`
+  `documents`, `job_screening_questions`, `job_applications`, `teams`)
+  gets one policy: `current_setting('app.role', true) IS DISTINCT FROM
+  'superadmin' AND tenant_id = NULLIF(current_setting('app.tenant_id',
+  true), '')::uuid`. The API connects as a single DB role and sets
+  `app.role`/`app.tenant_id` per request via `set_config(..., true)`
   (`app/core/database.py: set_rls_context`) — a session with
   `app.role = 'superadmin'` matches no row, on any of these tables,
-  independent of application code. `jobs` additionally has a second,
-  narrower permissive policy (`public_open_jobs`,
-  `0008_public_jobs_read_policy.py`) allowing SELECT on `status = 'open'`
-  rows with no session context at all — the public job board's only RLS
-  exception outside the `candidates.open_to_other_roles` one below. See
+  independent of application code.
+- `candidates` additionally has an OR-based exception baked into its
+  policy (`0006_job_board_and_applications.py`, amended by `0009`):
+  `... AND (tenant_id = NULLIF(current_setting('app.tenant_id', true),
+  '')::uuid OR open_to_other_roles = true)`. A candidate who opted in at
+  public-application time becomes readable to any recruiter platform-wide
+  — the first of the app's narrow, deliberate cross-tenant exceptions.
+  Only summary fields are exposed at the schema/API level (name, position,
+  experience) — RLS just gates the row, not which columns come back. See
+  [10-job-board-and-applications.md](10-job-board-and-applications.md)
+  ("Open profiles").
+- `candidates` also has a **narrower-than-tenant** restriction, the
+  opposite direction of the other exceptions above (0012_freelance_candidate_privacy.py):
+  within the tenant-match branch, a Freelance Org row additionally
+  requires `owner_user_id = NULLIF(current_setting('app.user_id', true),
+  '')::uuid` — Org tenant rows are unaffected (`tenant_id NOT IN (SELECT
+  id FROM tenants WHERE type = 'freelance_org')` short-circuits the owner
+  check for them). This needed a new `app.user_id` session GUC
+  (`set_rls_context`'s third parameter) alongside the existing
+  `app.role`/`app.tenant_id` ones — the same NULLIF-empty-string handling
+  applies to it as the GUC-placeholder gotcha below covers for
+  `app.tenant_id`.
+  A freelancer's uploaded/received candidates are private to them by
+  default; there's no UI/API toggle to share one with other freelancers
+  in the same tenant today. Scope note: this restricts `candidates` only
+  — `candidate_documents`/`pipeline_placements`/`notes` keep their
+  ordinary tenant-wide policies, relying on every app code path reaching
+  them through a `candidates` row first (which RLS already blocks for a
+  non-owner). See [01-roles-permissions.md](01-roles-permissions.md).
+- `jobs` additionally has a second, narrower permissive policy
+  (`public_open_jobs`, `0008_public_jobs_read_policy.py`) allowing SELECT
+  on `status = 'open'` rows with no session context at all — the second
+  exception, backing the public job board. See
   [10-job-board-and-applications.md](10-job-board-and-applications.md).
 
   **Gotcha that cost real debugging time, worth knowing before touching
@@ -278,9 +384,10 @@ not be able to bypass it).
   (`invalid input syntax for type uuid: ""`) instead of safely matching
   zero rows. `NULLIF(..., '')` before the cast fixes it for both NULL and
   `''`. Don't reintroduce a bare cast in a future policy.
-- `email_blacklist_entries` (`0010_email_blacklist_registry.py`) is
-  deliberately **not** RLS-protected at all, for the same reason `users`
-  isn't (see `app/api/routers/org.py`): it's a platform-wide registry, not
+- `email_blacklist_entries` (`0010_email_blacklist_registry.py`) is the
+  third exception, and the most extreme one — deliberately **not**
+  RLS-protected at all, for the same reason `users` isn't (see
+  `app/api/routers/org.py`): it's a platform-wide registry, not
   per-tenant recruiter content, and the whole point is that any
   authenticated recruiter can look up any email regardless of which
   tenant filed the entry. The API only ever returns `reason` +

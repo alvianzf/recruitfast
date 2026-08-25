@@ -14,8 +14,9 @@ the [overview](docs/00-overview.md).
   recruiters, self-registered and Superadmin-approved.
 - **Confidentiality by construction** — Postgres row-level security, not
   just UI hiding, keeps Superadmin locked out of every org's recruiter
-  content; two narrow, deliberate, documented exceptions exist (open
-  candidate profiles, the public job board) and nothing else.
+  content; three narrow, deliberate, documented exceptions exist (open
+  candidate profiles, the public job board, the platform-wide email
+  blacklist registry) and nothing else.
 - **Jobs & customizable pipelines** — default stage set cloned per job,
   freely reorder/rename/add/delete stages, `won`/`lost` job outcomes.
 - **Kanban + Table views everywhere**, drag-and-drop with a full ⋮-menu

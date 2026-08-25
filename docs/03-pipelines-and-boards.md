@@ -76,10 +76,20 @@ one job's board **only** updates that job's placement.
   conversion-rate metrics ([05-dashboards-metrics.md](05-dashboards-metrics.md))
   report them separately so a run of withdrawals doesn't get misread as a
   recruiter sourcing/screening problem.
-- **Blacklist is a separate, explicit, org-wide action** (`candidates.blacklisted`),
-  distinct from moving a card to Reject. It requires a reason and a
-  confirmation dialog, and shows as a persistent badge on the candidate's
-  profile. It is never an implicit side effect of a per-job rejection.
+- **Marking Rejected or Withdrawn also relocates the card.** Setting
+  `pipeline_placements.status` to either value physically moves
+  `current_stage_id` to the job's Reject-flagged stage, regardless of
+  which stage the candidate was moved from — this keeps the board visually
+  consistent (rejected/withdrawn candidates always land in the same
+  column) while `status` still records *why* it happened.
+- **Blacklist is a separate, explicit action**, distinct from moving a
+  card to Reject. It requires a reason and a confirmation dialog, sets
+  `candidates.blacklisted` for the tenant, and shows as a persistent badge
+  on the candidate's profile. It also files the candidate's email in a
+  platform-wide registry so other tenants are warned — see
+  [01-roles-permissions.md](01-roles-permissions.md) and
+  [02-data-model.md](02-data-model.md). It is never an implicit side
+  effect of a per-job rejection.
 - **Visibility, not silence:** every candidate card (Kanban) and row
   (Table) shows a badge — *"Also in 2 other pipelines"* — that expands to
   list the other jobs and their current stage. The candidate's profile has
@@ -115,19 +125,29 @@ given) a new CV for that same job:
   spatial, per-stage view is more useful once focused on one role.
 - **Candidates list (cross-job):** defaults to **Table**, with a "Stage"
   column per relevant job when filtered to one job's context.
-- The choice is a per-user, per-list preference, remembered across
-  sessions.
-- Table view of a pipeline mirrors Kanban's columns as a sortable/groupable
-  "Stage" field, and supports multi-select + bulk "Move to stage ▸" via the
-  ⋮ menu — bulk operations are a table-view-only capability Kanban doesn't
-  need to replicate.
+- **Target design:** the choice is a per-user, per-list preference,
+  remembered across sessions. **Implemented today:** it's local component
+  state on the job's own pipeline view (Kanban/Table toggle), reset to
+  Kanban on every navigation — not yet persisted anywhere. See
+  [06-ui-design-system.md](06-ui-design-system.md).
+- **Target design:** table view of a pipeline mirrors Kanban's columns as
+  a sortable/groupable "Stage" field, and supports multi-select + bulk
+  "Move to stage ▸" via the ⋮ menu. **Implemented today:** the table view
+  shows Stage as a read-only column; there's no multi-select or bulk
+  action UI yet anywhere in the app.
 
 ## Drag-and-drop / ⋮ parity
 
-Every drag-and-drop action has an identical entry in the row/card's **⋮**
-menu: "Move to stage ▸", "Mark as Rejected", "Mark as Withdrawn",
-"Blacklist candidate", "Add note", "Schedule interview" (P1), "View
-version history". Drag is an accelerator
+**Target design:** every drag-and-drop action has an identical entry in
+the row/card's **⋮** menu: "Move to stage ▸", "Mark as Rejected", "Mark as
+Withdrawn", "Blacklist candidate", "Add note", "Schedule interview" (P1),
+"View version history".
+
+**Implemented today:** the Kanban card's ⋮ menu offers "Mark as Rejected"
+and "Mark as Withdrawn" only — both fully keyboard/touch-accessible
+without drag. There is currently no non-drag way to move a candidate
+between stages (no "Move to stage" menu entry, no editable stage control
+in the table view) — full parity is not yet built. Drag is an accelerator
 for mouse users; the ⋮ menu is the primary path on touch devices and for
 screen-reader users, and both call the same backend action — there is no
 drag-only capability.

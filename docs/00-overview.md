@@ -28,7 +28,7 @@ row-level security), not just in the UI — see
 |---|---|---|
 | Superadmin | Platform-wide | No — architecturally blocked, not just hidden in UI |
 | Org Admin | One org tenant | Yes — full visibility into their org's recruiters |
-| Recruiter | One org tenant (or the Freelance Org) | Own work; org-shared candidate pool |
+| Recruiter | One org tenant (or the Freelance Org) | Jobs are org-shared everywhere (job *ownership*/assignment is per-recruiter, job *visibility* is org-wide). Candidates are org-shared in an **Org tenant**, but **private to the uploading/receiving recruiter by default in the Freelance Org** — see [01-roles-permissions.md](01-roles-permissions.md). |
 
 Full detail: [01-roles-permissions.md](01-roles-permissions.md).
 
@@ -42,26 +42,53 @@ Full detail: [01-roles-permissions.md](01-roles-permissions.md).
   [03-pipelines-and-boards.md](03-pipelines-and-boards.md).
 - **Pipeline** — customizable per job, cloned from a default/org template at
   job creation: `Sourced → CV Shortlist → Contacted → First Cut → User
-  Interview → Offer → Reject`.
+  Interview → Offer → Reject`. Jobs can be assigned directly to a
+  recruiter or left in an **Unassigned Jobs** queue for any recruiter to
+  self-claim.
+- **Team** — Org Admins can group recruiters into teams and filter
+  dashboard charts, including a per-recruiter performance breakdown, by
+  team. See [01-roles-permissions.md](01-roles-permissions.md).
+- **Public Job Board** — org-specific pages at a slug (plus a shared board
+  for freelance recruiters), public/unlisted job visibility, and
+  CV + cover-letter + screening-question applications with automatic
+  eligibility routing into the pipeline. See
+  [10-job-board-and-applications.md](10-job-board-and-applications.md).
+- **Blacklist** — a per-tenant `blacklisted` flag on a candidate, plus a
+  platform-wide, cross-tenant email registry: if a blacklisted email
+  applies elsewhere, that recruiter sees a flag (reason + date only, no
+  attribution) regardless of tenant. See
+  [01-roles-permissions.md](01-roles-permissions.md) and
+  [02-data-model.md](02-data-model.md).
+- **CSV/Excel bulk candidate import** — a preview-before-commit flow with
+  duplicate detection, backend-only today (see
+  [09-candidate-intake.md](09-candidate-intake.md) for UI status).
 
 ## Views and interaction model
 
-- Every list (Jobs, Candidates, a job's pipeline) defaults to **Table**;
-  users can switch to **Kanban**, and the choice is remembered per user per
-  list.
-- Every action available via drag-and-drop is also available via a **"⋮"
-  (three dots) menu** with identical, clickable actions — drag is an
-  accelerator, never the only path (accessibility, touch devices, power
-  users).
+- Jobs and Candidates lists are always **Table**; a job's own pipeline
+  defaults to **Kanban** with a toggle back to Table. The toggle is
+  currently local component state, not yet persisted per-user — see
+  [06-ui-design-system.md](06-ui-design-system.md) for exact status.
+- The Kanban ⋮ menu currently covers **Mark as Rejected** / **Mark as
+  Withdrawn** (both keyboard/touch-accessible without drag); a full
+  drag-and-drop-parity menu (e.g. "move to stage") is not yet built — see
+  [06-ui-design-system.md](06-ui-design-system.md).
+- The Candidates list has a **Quick View** side drawer (basic info,
+  parsed CV data as a table, CV preview + download, Next/Prev to browse)
+  for reviewing candidates without leaving the list — see
+  [09-candidate-intake.md](09-candidate-intake.md).
 
 Full detail: [03-pipelines-and-boards.md](03-pipelines-and-boards.md) and
 [06-ui-design-system.md](06-ui-design-system.md).
 
 ## CV Parser
 
-Yes — accurate CV parsing is achievable **without calling an external LLM
-API**, using a hybrid rule-based + local Small Language Model (SLM)
-pipeline that runs entirely self-hosted. Full architecture and rationale:
+Accurate CV parsing without calling an external LLM API is the design
+goal, targeted via a hybrid rule-based + local Small Language Model (SLM)
+pipeline. **Only the rule-based half is built today** — a labeled-format
+parser plus a generic regex/heuristic fallback, both deterministic; the
+local-SLM semantic layer for free-text resumes is a documented gap, not
+yet implemented. Full architecture, rationale, and current status:
 [04-cv-parser.md](04-cv-parser.md).
 
 ## Scope tiers
@@ -86,9 +113,11 @@ Rationale for every P1/P2 item and the flows they close: see
 
 ## Tech stack (summary)
 
-- **Backend:** Python, FastAPI, SQLAlchemy, Alembic — chosen specifically
-  because the CV Parser's ML pipeline (spaCy, local SLM inference) runs
-  in-process without a cross-service hop.
+- **Backend:** Python, FastAPI, SQLAlchemy, Alembic — chosen so the CV
+  Parser (today: `pdfplumber`/`python-docx` text extraction + regex/label
+  parsing; planned: local SLM inference for free-text resumes, see
+  [04-cv-parser.md](04-cv-parser.md)) can run in-process without a
+  cross-service hop.
 - **Frontend:** React + MUI, styled to **Material Design 3**, glassmorphism
   surfaces, brand primary `#990000`.
 - **Database:** PostgreSQL (local dev: db `recruitfast`; credentials via
