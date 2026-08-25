@@ -13,6 +13,7 @@ import {
 } from "@mui/material";
 
 import { useUpdateCandidate, type Candidate, type CandidateUpdateInput } from "../api/candidates";
+import { useToast } from "./ToastProvider";
 
 export default function EditCandidateDialog({
   candidate,
@@ -24,6 +25,7 @@ export default function EditCandidateDialog({
   onClose: () => void;
 }) {
   const update = useUpdateCandidate(candidate.id);
+  const { showToast } = useToast();
   const [form, setForm] = useState<CandidateUpdateInput>({
     full_name: candidate.full_name,
     email: candidate.email ?? "",
@@ -46,8 +48,13 @@ export default function EditCandidateDialog({
 
   async function handleSave() {
     if (!form.full_name?.trim()) return;
-    await update.mutateAsync(form);
-    onClose();
+    try {
+      await update.mutateAsync(form);
+      showToast("Candidate updated.");
+      onClose();
+    } catch {
+      showToast("Could not save changes. Please try again.", "error");
+    }
   }
 
   return (

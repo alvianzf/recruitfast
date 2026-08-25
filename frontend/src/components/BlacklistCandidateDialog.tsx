@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField, Typography } from "@mui/material";
 
 import { useBlacklistCandidate } from "../api/pipeline";
+import { useToast } from "./ToastProvider";
 
 export default function BlacklistCandidateDialog({
   candidateId,
@@ -13,13 +14,19 @@ export default function BlacklistCandidateDialog({
   onClose: () => void;
 }) {
   const blacklist = useBlacklistCandidate();
+  const { showToast } = useToast();
   const [reason, setReason] = useState("");
 
   async function handleConfirm() {
     if (!reason.trim()) return;
-    await blacklist.mutateAsync({ candidateId, reason });
-    setReason("");
-    onClose();
+    try {
+      await blacklist.mutateAsync({ candidateId, reason });
+      showToast("Candidate blacklisted.");
+      setReason("");
+      onClose();
+    } catch {
+      showToast("Could not blacklist this candidate. Please try again.", "error");
+    }
   }
 
   return (

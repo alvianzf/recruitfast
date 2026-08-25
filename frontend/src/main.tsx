@@ -6,6 +6,7 @@ import { BrowserRouter } from "react-router-dom";
 
 import App from "./App";
 import { AuthProvider } from "./auth/AuthContext";
+import { ToastProvider } from "./components/ToastProvider";
 import { buildTheme } from "./theme";
 import "./index.css";
 
@@ -28,7 +29,9 @@ function Root() {
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
           <AuthProvider>
-            <App />
+            <ToastProvider>
+              <App />
+            </ToastProvider>
           </AuthProvider>
         </BrowserRouter>
       </QueryClientProvider>

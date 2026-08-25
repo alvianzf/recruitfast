@@ -1,6 +1,7 @@
 import { Button, Dialog, DialogActions, DialogContent, DialogTitle, Typography } from "@mui/material";
 
 import { useDeleteCandidate, type Candidate } from "../api/candidates";
+import { useToast } from "./ToastProvider";
 
 export default function DeleteCandidateDialog({
   candidate,
@@ -14,11 +15,17 @@ export default function DeleteCandidateDialog({
   onDeleted?: () => void;
 }) {
   const deleteCandidate = useDeleteCandidate();
+  const { showToast } = useToast();
 
   async function handleConfirm() {
-    await deleteCandidate.mutateAsync(candidate.id);
-    onClose();
-    onDeleted?.();
+    try {
+      await deleteCandidate.mutateAsync(candidate.id);
+      showToast(`${candidate.full_name} deleted.`);
+      onClose();
+      onDeleted?.();
+    } catch {
+      showToast("Could not delete this candidate. Please try again.", "error");
+    }
   }
 
   return (
