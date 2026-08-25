@@ -9,6 +9,7 @@ import { createTheme, type PaletteMode } from "@mui/material";
 // See docs/06-ui-design-system.md.
 export const BRAND_PRIMARY = "#990000";
 export const BRAND_PRIMARY_LIGHT = "#c62a2a";
+export const OFF_WHITE = "#f7f5f2";
 
 export function buildTheme(mode: PaletteMode) {
   const isDark = mode === "dark";
@@ -21,13 +22,15 @@ export function buildTheme(mode: PaletteMode) {
         contrastText: "#ffffff",
       },
       secondary: {
-        main: isDark ? "#ffb199" : "#7a1f1f",
+        main: OFF_WHITE,
+        contrastText: "#241019",
       },
       background: {
         // MUI's color utilities (alpha/darken/lighten — used internally by
         // DataGrid and others) can't parse the CSS keyword "transparent",
         // only actual color-function formats. rgba(...) with 0 alpha is
-        // visually identical and parses fine.
+        // visually identical and parses fine. The visible background is
+        // the off-white .app-background gradient in index.css.
         default: "rgba(0,0,0,0)",
         paper: isDark ? "#241019" : "#ffffff",
       },
