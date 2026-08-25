@@ -97,6 +97,10 @@ Your task is to read a candidate's resume and produce a structured **JSON output
     }
   ],
   "main_projects": [
+    // Include EVERY project/role/engagement described anywhere in the
+    // CV's work-history section, in the order they appear — do not
+    // summarize, merge, or omit any of them, even if there are many or
+    // some have little detail. One array entry per project, full stop.
     {
       "project_title": "<generic title without company name, e.g. 'Banking API QA Automation' or 'Healthcare Platform QA Management'>",
       "company_name": "<replace with generic term, e.g. 'fintech platform' or 'enterprise project'>",
@@ -127,6 +131,9 @@ Formatting Rules:
 - Infer project name if there's not any
 - Copy responsibilities with what is written in the CV in verbatim, break it down to bullet points without headers
 - Keep grammar clean, short, and accurate.
+- `main_projects` must contain ALL projects/roles/engagements found anywhere in the CV, not a
+  representative sample — if the CV lists 7 positions/projects, the output has 7 entries. Never
+  truncate, summarize into fewer entries, or drop older/shorter ones for brevity.
 - Output only valid JSON inside a Markdown code block."""
 
 _EMPTY_SKILLS = {"programming_languages_and_frameworks": [], "databases": [], "ai_tools": [], "others": []}

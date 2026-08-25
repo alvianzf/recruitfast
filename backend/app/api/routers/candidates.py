@@ -129,11 +129,13 @@ def delete_candidate(
     db: Session = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
 ) -> None:
-    # Soft delete only — pipeline_placements/notes/documents referencing
-    # this candidate are left in place (no cascade), consistent with the
-    # SoftDeleteMixin convention used everywhere else. Every existing read
-    # already filters on deleted_at.is_(None), so this candidate simply
-    # stops appearing anywhere the moment this commits.
+    # Candidate row is soft-deleted (consistent with the SoftDeleteMixin
+    # convention used everywhere else — every existing read already
+    # filters on deleted_at.is_(None)), but every CV file this candidate
+    # ever uploaded is hard-deleted, both on disk and its `documents` /
+    # `candidate_documents` rows — a dangling DB row pointing at a file
+    # that no longer exists is worse than no row at all, and there's no
+    # UI path to view an old version of a deleted candidate anyway.
     candidate = (
         db.query(Candidate)
         .filter(Candidate.id == candidate_id, Candidate.tenant_id == current_user.tenant_id, Candidate.deleted_at.is_(None))
@@ -141,6 +143,21 @@ def delete_candidate(
     )
     if candidate is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Candidate not found")
+
+    documents = (
+        db.query(Document)
+        .join(CandidateDocument, CandidateDocument.file_id == Document.id)
+        .filter(CandidateDocument.candidate_id == candidate_id)
+        .all()
+    )
+    for document in documents:
+        file_path = storage.STORAGE_ROOT / document.storage_key
+        file_path.unlink(missing_ok=True)
+
+    db.query(CandidateDocument).filter(CandidateDocument.candidate_id == candidate_id).delete()
+    for document in documents:
+        db.delete(document)
+
     candidate.deleted_at = datetime.now(timezone.utc)
 
 
