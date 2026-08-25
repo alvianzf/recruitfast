@@ -8,10 +8,6 @@ import {
   Drawer,
   IconButton,
   Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableRow,
   Typography,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
@@ -20,6 +16,7 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
 
 import { useCandidate, useCandidateCv } from "../api/candidates";
+import ParsedDataTable from "./ParsedDataTable";
 
 function InfoRow({ label, value }: { label: string; value: string | null | undefined }) {
   if (!value) return null;
@@ -31,32 +28,6 @@ function InfoRow({ label, value }: { label: string; value: string | null | undef
       <Typography variant="body2">{value}</Typography>
     </Stack>
   );
-}
-
-// Flattens the parser's nested parsed_fields into field/value rows for the
-// quick-view table — this deliberately doesn't try to reproduce the rich,
-// sectioned rendering on the full Candidate Detail page (see CandidateDetail.tsx);
-// it's meant for a fast scan while browsing, not the primary reading view.
-function stringifyParsedValue(value: unknown): string {
-  if (value === null || value === undefined || value === "") return "—";
-  if (Array.isArray(value)) {
-    if (value.length === 0) return "—";
-    if (typeof value[0] === "object" && value[0] !== null) {
-      return value
-        .map((item) => Object.values(item as Record<string, unknown>).filter(Boolean).join(" · "))
-        .join("; ");
-    }
-    return value.join(", ");
-  }
-  if (typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>).filter(([, v]) => {
-      if (Array.isArray(v)) return v.length > 0;
-      return !!v;
-    });
-    if (entries.length === 0) return "—";
-    return entries.map(([k, v]) => `${k.replace(/_/g, " ")}: ${stringifyParsedValue(v)}`).join("; ");
-  }
-  return String(value);
 }
 
 export default function CandidateQuickView({
@@ -102,12 +73,6 @@ export default function CandidateQuickView({
   }, [open, hasPrev, hasNext, index, candidateIds, onNavigate]);
 
   const doc = candidate?.current_document;
-  const parsedRows = doc
-    ? Object.entries(doc.parsed_fields).map(([field, value]) => ({
-        field: field.replace(/_/g, " "),
-        value: stringifyParsedValue(value),
-      }))
-    : [];
 
   return (
     <Drawer
@@ -154,23 +119,10 @@ export default function CandidateQuickView({
               {candidate.blacklisted && <Chip size="small" color="error" label="Blacklisted" sx={{ alignSelf: "flex-start", mt: 0.5 }} />}
             </Stack>
 
-            {doc && parsedRows.length > 0 && (
+            {doc && (
               <Stack spacing={1}>
                 <Typography sx={{ fontWeight: 700 }}>Parsed Data</Typography>
-                <Table size="small">
-                  <TableBody>
-                    {parsedRows.map((row) => (
-                      <TableRow key={row.field}>
-                        <TableCell
-                          sx={{ fontWeight: 600, verticalAlign: "top", width: 150, textTransform: "capitalize", pl: 0 }}
-                        >
-                          {row.field}
-                        </TableCell>
-                        <TableCell sx={{ wordBreak: "break-word" }}>{row.value}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <ParsedDataTable parsedFields={doc.parsed_fields} />
               </Stack>
             )}
 

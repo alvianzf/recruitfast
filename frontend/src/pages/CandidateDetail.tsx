@@ -33,6 +33,7 @@ import { useBlacklistStatuses } from "../api/blacklist";
 import Breadcrumbs from "../components/Breadcrumbs";
 import PageHeader from "../components/PageHeader";
 import BlacklistBadge from "../components/BlacklistBadge";
+import ParsedDataTable from "../components/ParsedDataTable";
 
 function InfoRow({ label, value }: { label: string; value: string | null }) {
   if (!value) return null;
@@ -227,6 +228,17 @@ export default function CandidateDetail() {
                     Parsed from {doc.original_filename} — review fields before relying on them fully.
                   </Alert>
                 )}
+
+                <Paper sx={{ p: 1 }}>
+                  <Accordion disableGutters elevation={0} sx={{ backdropFilter: "none", "&:before": { display: "none" } }}>
+                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                      <Typography sx={{ fontWeight: 700 }}>Parsed Data</Typography>
+                    </AccordionSummary>
+                    <AccordionDetails>
+                      <ParsedDataTable parsedFields={doc.parsed_fields} />
+                    </AccordionDetails>
+                  </Accordion>
+                </Paper>
 
                 {doc.parsed_fields.summary && doc.parsed_fields.summary.length > 0 && (
                   <Paper sx={{ p: 2.5 }}>
