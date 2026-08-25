@@ -15,6 +15,28 @@ class CandidateOut(BaseModel):
     current_position: str | None
     total_years_experience: str | None
     blacklisted: bool
+    open_to_other_roles: bool
+    linkedin_url: str | None
+    github_url: str | None
+    portfolio_url: str | None
+
+
+class CandidateUpdate(BaseModel):
+    full_name: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    source: str | None = None
+    current_position: str | None = None
+    total_years_experience: str | None = None
+    linkedin_url: str | None = None
+    github_url: str | None = None
+    portfolio_url: str | None = None
+    # "Open Profile" — the candidate is discoverable by any recruiter in
+    # any tenant (the cross-tenant RLS exception on `candidates`), not
+    # just this tenant/team. Previously only settable by the candidate
+    # themselves at public-application time; recruiters can now also flip
+    # it for candidates they added directly. See docs/01, docs/02.
+    open_to_other_roles: bool | None = None
 
 
 class CurrentDocumentOut(BaseModel):

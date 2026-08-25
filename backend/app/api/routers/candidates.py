@@ -1,5 +1,6 @@
 import asyncio
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
@@ -11,6 +12,7 @@ from app.models.document import Document
 from app.schemas.candidate import (
     CandidateDetailOut,
     CandidateOut,
+    CandidateUpdate,
     CurrentDocumentOut,
     CVCommitRequest,
     CVCommitResponse,
@@ -95,6 +97,51 @@ def get_candidate(
             parse_status=cd.parse_status.value,
         )
     return detail
+
+
+@router.patch("/{candidate_id}", response_model=CandidateOut)
+def update_candidate(
+    candidate_id: uuid.UUID,
+    payload: CandidateUpdate,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> Candidate:
+    candidate = (
+        db.query(Candidate)
+        .filter(Candidate.id == candidate_id, Candidate.tenant_id == current_user.tenant_id, Candidate.deleted_at.is_(None))
+        .first()
+    )
+    if candidate is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Candidate not found")
+
+    updates = payload.model_dump(exclude_unset=True)
+    if "full_name" in updates and not updates["full_name"]:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="full_name cannot be blank")
+    for field, value in updates.items():
+        setattr(candidate, field, value)
+
+    return candidate
+
+
+@router.delete("/{candidate_id}", status_code=204)
+def delete_candidate(
+    candidate_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> None:
+    # Soft delete only — pipeline_placements/notes/documents referencing
+    # this candidate are left in place (no cascade), consistent with the
+    # SoftDeleteMixin convention used everywhere else. Every existing read
+    # already filters on deleted_at.is_(None), so this candidate simply
+    # stops appearing anywhere the moment this commits.
+    candidate = (
+        db.query(Candidate)
+        .filter(Candidate.id == candidate_id, Candidate.tenant_id == current_user.tenant_id, Candidate.deleted_at.is_(None))
+        .first()
+    )
+    if candidate is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Candidate not found")
+    candidate.deleted_at = datetime.now(timezone.utc)
 
 
 @router.get("/{candidate_id}/cv")
