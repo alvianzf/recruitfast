@@ -46,8 +46,16 @@ class CurrentDocumentOut(BaseModel):
     parse_status: str
 
 
+class PlacementSummary(BaseModel):
+    job_id: uuid.UUID
+    job_title: str
+    stage_name: str
+    status: str
+
+
 class CandidateDetailOut(CandidateOut):
     current_document: CurrentDocumentOut | None = None
+    placements: list[PlacementSummary] = []
 
 
 class PossibleDuplicate(BaseModel):

@@ -9,6 +9,9 @@ from sqlalchemy.orm import Session
 from app.api.deps import CurrentUser, get_current_user, get_db
 from app.models.candidate import Candidate, CandidateDocument, ParseStatus
 from app.models.document import Document
+from app.models.job import Job
+from app.models.pipeline import JobStage
+from app.models.placement import PipelinePlacement
 from app.schemas.candidate import (
     CandidateDetailOut,
     CandidateOut,
@@ -18,6 +21,7 @@ from app.schemas.candidate import (
     CVCommitResponse,
     CVPreviewItem,
     CVPreviewResponse,
+    PlacementSummary,
     PossibleDuplicate,
 )
 from app.schemas.screening import OpenProfileCandidate
@@ -87,6 +91,15 @@ def get_candidate(
         .first()
     )
 
+    placement_rows = (
+        db.query(PipelinePlacement, JobStage, Job)
+        .join(JobStage, JobStage.id == PipelinePlacement.current_stage_id)
+        .join(Job, Job.id == PipelinePlacement.job_id)
+        .filter(PipelinePlacement.candidate_id == candidate_id)
+        .order_by(PipelinePlacement.updated_at.desc())
+        .all()
+    )
+
     detail = CandidateDetailOut.model_validate(candidate)
     if current_doc:
         cd, doc = current_doc
@@ -96,6 +109,10 @@ def get_candidate(
             parse_confidence=cd.parse_confidence,
             parse_status=cd.parse_status.value,
         )
+    detail.placements = [
+        PlacementSummary(job_id=job.id, job_title=job.title, stage_name=stage.name, status=placement.status.value)
+        for placement, stage, job in placement_rows
+    ]
     return detail
 
 

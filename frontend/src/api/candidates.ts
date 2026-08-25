@@ -59,7 +59,15 @@ export interface CVCommitItem {
   parse_confidence?: Record<string, unknown> | null;
 }
 
+export interface PlacementSummary {
+  job_id: string;
+  job_title: string;
+  stage_name: string;
+  status: string;
+}
+
 export interface CandidateDetail extends Candidate {
+  placements: PlacementSummary[];
   current_document: {
     original_filename: string;
     parsed_fields: {
