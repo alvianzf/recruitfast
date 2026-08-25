@@ -7,6 +7,7 @@ class PublicJobSummary(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
+    slug: str
     title: str
     overview: str | None
     applicant_count: int

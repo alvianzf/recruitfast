@@ -29,6 +29,10 @@ class Job(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )
     title: Mapped[str] = mapped_column(String, nullable=False)
+    # Public URL identifier — {slugify(title)}-{5 random chars}, always
+    # suffixed (not just on collision) so the public apply link never
+    # exposes the internal UUID. See app/services/slugs.py, docs/10.
+    slug: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     overview: Mapped[str | None] = mapped_column(Text, nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     jd_file_id: Mapped[uuid.UUID | None] = mapped_column(

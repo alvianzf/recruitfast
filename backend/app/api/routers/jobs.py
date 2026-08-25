@@ -8,6 +8,7 @@ from app.models.job import Job
 from app.models.pipeline import DEFAULT_STAGE_NAMES, JobStage
 from app.models.user import User
 from app.schemas.job import AssignJobRequest, JobCreate, JobOut
+from app.services.slugs import generate_job_slug
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -48,6 +49,7 @@ def create_job(
         tenant_id=uuid.UUID(current_user.tenant_id),
         owner_recruiter_id=None if payload.unassigned else uuid.UUID(current_user.user_id),
         title=payload.title,
+        slug=generate_job_slug(payload.title),
         overview=payload.overview,
         description=payload.description,
     )

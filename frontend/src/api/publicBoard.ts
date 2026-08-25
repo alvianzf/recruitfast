@@ -4,6 +4,7 @@ import { api } from "./client";
 
 export interface PublicJobSummary {
   id: string;
+  slug: string;
   title: string;
   overview: string | null;
   applicant_count: number;
@@ -47,11 +48,11 @@ export function useFreelanceBoard() {
   });
 }
 
-export function usePublicJob(jobId: string) {
+export function usePublicJob(jobSlug: string) {
   return useQuery({
-    queryKey: ["public-job", jobId],
-    queryFn: async () => (await api.get<PublicJobDetail>(`/public/jobs/${jobId}`)).data,
-    enabled: !!jobId,
+    queryKey: ["public-job", jobSlug],
+    queryFn: async () => (await api.get<PublicJobDetail>(`/public/jobs/${jobSlug}`)).data,
+    enabled: !!jobSlug,
     retry: false,
   });
 }
@@ -70,7 +71,7 @@ export interface ApplyInput {
   cv: File;
 }
 
-export function useApplyToJob(jobId: string) {
+export function useApplyToJob(jobSlug: string) {
   return useMutation({
     mutationFn: async (input: ApplyInput) => {
       const form = new FormData();
@@ -86,7 +87,7 @@ export function useApplyToJob(jobId: string) {
       form.append("answers_json", JSON.stringify(input.answers));
       form.append("cv", input.cv);
       const { data } = await api.post<{ eligible: boolean; message: string }>(
-        `/public/jobs/${jobId}/apply`,
+        `/public/jobs/${jobSlug}/apply`,
         form,
         { headers: { "Content-Type": "multipart/form-data" } },
       );

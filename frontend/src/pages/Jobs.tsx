@@ -79,7 +79,7 @@ export default function Jobs() {
               size="small"
               onClick={(e) => {
                 e.stopPropagation();
-                navigator.clipboard.writeText(`${window.location.origin}/apply/${params.row.id}`);
+                navigator.clipboard.writeText(`${window.location.origin}/apply/${params.row.slug}`);
               }}
             >
               <LinkIcon fontSize="small" />

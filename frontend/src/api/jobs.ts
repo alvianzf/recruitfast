@@ -4,6 +4,7 @@ import { api } from "./client";
 
 export interface Job {
   id: string;
+  slug: string;
   title: string;
   overview: string | null;
   status: string;

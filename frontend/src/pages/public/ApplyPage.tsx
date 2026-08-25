@@ -37,9 +37,9 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 export default function ApplyPage() {
-  const { jobId = "" } = useParams();
-  const { data: job, isLoading, isError } = usePublicJob(jobId);
-  const apply = useApplyToJob(jobId);
+  const { jobSlug = "" } = useParams();
+  const { data: job, isLoading, isError } = usePublicJob(jobSlug);
+  const apply = useApplyToJob(jobSlug);
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [submitted, setSubmitted] = useState<{ eligible: boolean; message: string } | null>(null);

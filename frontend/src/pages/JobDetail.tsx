@@ -92,7 +92,7 @@ export default function JobDetail() {
         <Tooltip title="Copy application link">
           <IconButton
             size="small"
-            onClick={() => navigator.clipboard.writeText(`${window.location.origin}/apply/${jobId}`)}
+            onClick={() => navigator.clipboard.writeText(`${window.location.origin}/apply/${job.slug}`)}
           >
             <LinkIcon fontSize="small" />
           </IconButton>

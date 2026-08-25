@@ -28,7 +28,7 @@ export default function App() {
       <Route path="/register" element={<Register />} />
       <Route path="/careers/public" element={<CareersBoard freelance />} />
       <Route path="/careers/:slug" element={<CareersBoard />} />
-      <Route path="/apply/:jobId" element={<ApplyPage />} />
+      <Route path="/apply/:jobSlug" element={<ApplyPage />} />
       <Route
         path="/app/dashboard"
         element={

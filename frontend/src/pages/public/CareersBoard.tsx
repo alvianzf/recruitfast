@@ -128,7 +128,7 @@ export default function CareersBoard({ freelance = false }: { freelance?: boolea
                   {pagedJobs.map((job) => (
                     <Paper
                       key={job.id}
-                      onClick={() => navigate(`/apply/${job.id}`)}
+                      onClick={() => navigate(`/apply/${job.slug}`)}
                       sx={{ p: 3, cursor: "pointer", "&:hover": { borderColor: "primary.main" } }}
                     >
                       <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center", gap: 2 }}>

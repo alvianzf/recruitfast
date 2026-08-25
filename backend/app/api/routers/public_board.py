@@ -74,7 +74,9 @@ def _board_response(db, tenant: Tenant) -> PublicBoardResponse:
     return PublicBoardResponse(
         org_name=tenant.name,
         jobs=[
-            PublicJobSummary(id=j.id, title=j.title, overview=j.overview, applicant_count=_applicant_count(db, j.id))
+            PublicJobSummary(
+                id=j.id, slug=j.slug, title=j.title, overview=j.overview, applicant_count=_applicant_count(db, j.id)
+            )
             for j in jobs
         ],
     )
@@ -102,8 +104,8 @@ def org_board(slug: str) -> PublicBoardResponse:
         return _board_response(db, tenant)
 
 
-@router.get("/jobs/{job_id}", response_model=PublicJobDetail)
-def public_job_detail(job_id: uuid.UUID) -> PublicJobDetail:
+@router.get("/jobs/{slug}", response_model=PublicJobDetail)
+def public_job_detail(slug: str) -> PublicJobDetail:
     with raw_session() as db:
         # Deliberately no set_rls_context call before this lookup — the
         # public_open_jobs policy (migration 0008) grants SELECT on
@@ -112,7 +114,10 @@ def public_job_detail(job_id: uuid.UUID) -> PublicJobDetail:
         # OTHER (tenant_isolation) policy's ''::uuid cast hard-errors on —
         # Postgres evaluates every permissive policy's USING clause even
         # once one already matched. See migration 0008's docstring.
-        job = db.query(Job).filter(Job.id == job_id, Job.status == JobStatus.open, Job.deleted_at.is_(None)).first()
+        #
+        # Looked up by slug, not id — the public apply URL never exposes
+        # the internal UUID. See app/services/slugs.py, migration 0013.
+        job = db.query(Job).filter(Job.slug == slug, Job.status == JobStatus.open, Job.deleted_at.is_(None)).first()
         if job is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Job not found")
         # tenants isn't RLS-protected, safe to query before re-scoping below.
@@ -123,7 +128,7 @@ def public_job_detail(job_id: uuid.UUID) -> PublicJobDetail:
 
         questions = (
             db.query(JobScreeningQuestion)
-            .filter(JobScreeningQuestion.job_id == job_id)
+            .filter(JobScreeningQuestion.job_id == job.id)
             .order_by(JobScreeningQuestion.position)
             .all()
         )
@@ -142,11 +147,11 @@ def public_job_detail(job_id: uuid.UUID) -> PublicJobDetail:
         )
 
 
-@router.post("/jobs/{job_id}/apply", response_model=ApplyResponse, status_code=201)
+@router.post("/jobs/{slug}/apply", response_model=ApplyResponse, status_code=201)
 @limiter.limit("5/minute")
 async def apply_to_job(
     request: Request,
-    job_id: uuid.UUID,
+    slug: str,
     full_name: str = Form(...),
     email: str = Form(...),
     phone: str = Form(...),
@@ -162,7 +167,7 @@ async def apply_to_job(
     with raw_session() as db:
         # No set_rls_context call before this lookup — see the comment in
         # public_job_detail above / migration 0008's docstring for why.
-        job = db.query(Job).filter(Job.id == job_id, Job.status == JobStatus.open, Job.deleted_at.is_(None)).first()
+        job = db.query(Job).filter(Job.slug == slug, Job.status == JobStatus.open, Job.deleted_at.is_(None)).first()
         if job is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="This job isn't accepting applications")
 
@@ -272,7 +277,7 @@ async def apply_to_job(
         )
 
         # --- eligibility against the job's custom screening questions ---
-        questions = db.query(JobScreeningQuestion).filter(JobScreeningQuestion.job_id == job_id).all()
+        questions = db.query(JobScreeningQuestion).filter(JobScreeningQuestion.job_id == job.id).all()
         answers_by_qid = {a.get("question_id"): a.get("answer", "") for a in answers_raw}
         answer_records = []
         eligible = True
