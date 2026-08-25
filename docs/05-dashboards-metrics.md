@@ -15,6 +15,13 @@ for the shared library/styling decisions.
 
 ## Recruiter dashboard
 
+**Implemented today:** three stat tiles (open jobs, total candidates,
+active offers — `GET /metrics/recruiter`) plus one bar chart, "active
+candidates per pipeline stage" (not a funnel, no rejected/withdrawn
+split). Everything else below (items 1, 2, 4, 6, 7, 8) is target design,
+not yet built — only item 5 was already marked P1 in the original spec;
+the rest reads as done but isn't.
+
 1. **Open jobs assigned to me, aging-sorted** *(sortable table + a small
    horizontal bar per row showing days-open)* — where to focus today.
 2. **Time-to-fill per active job** *(horizontal bar chart, one bar per job,
@@ -35,6 +42,12 @@ for the shared library/styling decisions.
    sparkline)* — inbox-zero for intake.
 
 ## Org Admin dashboard
+
+**Implemented today:** jobs-by-status (item 2, but rendered as a full
+pie, not a donut), recruiter workload (item 3, but a vertical bar, not
+horizontal), and the >30/60/90-day age buckets (item 4, but as three
+plain `StatTile` counters, not a stacked bar chart) — all team-filterable
+(see item 3's note). Items 1, 5, 6, 7, 8, 9 are target design, not built.
 
 1. **Org-wide avg time-to-fill, trended** *(line chart, monthly)* — health
    of the whole shop over time, not a single point-in-time number.
@@ -63,7 +76,9 @@ for the shared library/styling decisions.
    are losing interest before we decide."
 8. **Recruiter activity trend** *(multi-line chart, one line per
    recruiter, throughput not a ranked list)* — framed as coverage, not a
-   leaderboard, to avoid micromanagement optics per the QA review.
+   leaderboard, to avoid micromanagement optics per the QA review. Not
+   the same thing as the implemented recruiter-performance breakdown in
+   item 3, which is a point-in-time snapshot, not a trend.
 9. **New-recruiter ramp status** *(bar chart, placements in first
    30/60/90 days)* — onboarding health.
 
@@ -72,6 +87,19 @@ for the shared library/styling decisions.
 Built entirely from tenant/user/billing metadata — no job, candidate,
 pipeline, or note content is ever queryable from this role (enforced by
 RLS, see [02-data-model.md](02-data-model.md#row-level-security-rls-model)).
+
+**Implemented today:** four flat stat tiles only (`GET /metrics/platform`
+— org tenant count, freelance member count, total recruiters, freelance
+approval queue depth), no charts/trends/sparklines anywhere on this
+dashboard. Item 5 below is the only one with a real implemented number
+(as a bare count, no sparkline); items 1–4 and 6–9 are all target design.
+Item 4 specifically is not just unbuilt but currently **architecturally
+blocked**: the `jobs`/`candidates` RLS policy excludes the superadmin
+role entirely (by design), so even a bare `COUNT(*)` needs a dedicated
+aggregate mechanism (a `SECURITY DEFINER` function or materialized view)
+that doesn't exist yet — see
+[01-roles-permissions.md](01-roles-permissions.md) and
+[08-open-questions-and-gaps.md](08-open-questions-and-gaps.md).
 
 1. **Active tenants** *(stat tile + line chart trend, Orgs and Freelance
    Org members as separate series)* — platform size and growth.

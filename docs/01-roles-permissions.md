@@ -113,11 +113,15 @@ built; see [02-data-model.md](02-data-model.md) and
   share the same `tenant_id`. This is enforced by RLS via a new
   `candidates.owner_user_id` column and an `app.user_id` session GUC (see
   [02-data-model.md](02-data-model.md)), not just app-level filtering.
-  There is currently no "share this candidate with my fellow freelancers"
-  toggle — privacy is the only mode, not a default that can be turned
-  off. This is unrelated to, and doesn't affect, the separate
-  cross-*tenant* Open Profiles opt-in (`open_to_other_roles`) a candidate
-  sets for themselves at public-application time.
+  There is no separate "share with my fellow freelancers" toggle — the
+  existing **Open Profiles** opt-in (`open_to_other_roles`, checked by
+  the *candidate* on the public application form, not the recruiter)
+  doubles as that mechanism: it overrides privacy entirely, making the
+  candidate visible platform-wide — to every tenant, not just the
+  uploading freelancer's fellow freelancers — the same as it always has
+  for cross-tenant Open Profiles sharing. A private candidate becomes
+  fully public (not "shared within my tenant only") the moment that box
+  is checked; there's no in-between visibility tier.
   Jobs are **not** covered by this — every Freelance Org job is still
   visible to every freelancer in that tenant, same as an Org tenant's
   jobs are to its recruiters. A per-job "mark confidential" capability

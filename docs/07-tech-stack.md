@@ -4,27 +4,40 @@
 
 - **Language/framework:** Python 3.12+, FastAPI.
 - **ORM/migrations:** SQLAlchemy 2.x + Alembic.
-- **Why Python over Node for the API:** the CV Parser's ML pipeline
-  (spaCy, local SLM inference via `llama-cpp-python` or an Ollama client)
-  runs in-process, in the same language as the rest of the backend — no
-  cross-service call, no second deployable, no serialization overhead
-  between a Node API and a Python parsing service.
-- **Auth:** JWT access token (short-lived) + refresh token (httpOnly
-  cookie), role + tenant_id embedded as claims, verified per-request and
-  used to set the Postgres session variable (`app.tenant_id`,
-  `app.role`) that RLS policies key off.
-- **Background jobs:** CV parsing, OCR, and re-parse run as async
-  background tasks (FastAPI `BackgroundTasks` for P0; a real queue —
-  Celery/RQ + Redis — once parse volume justifies it) so uploads don't
-  block the request.
+- **Why Python over Node for the API:** so the CV Parser's pipeline can
+  run in-process, in the same language as the rest of the backend — no
+  cross-service call, no second deployable. (Today this benefit applies
+  to the regex/`pdfplumber`/`python-docx` extraction that's actually
+  built; the target design's spaCy + local-SLM inference layer isn't
+  implemented yet — see [04-cv-parser.md](04-cv-parser.md).)
+- **Auth:** JWT access token + refresh token, role/tenant_id/user_id
+  embedded in the access token's claims, verified per-request and used
+  to set the Postgres session variables (`app.tenant_id`, `app.role`,
+  `app.user_id`) that RLS policies key off. **Implemented today:** both
+  tokens are returned in the login response JSON body (`POST
+  /auth/login`); there is no httpOnly cookie anywhere, and the frontend
+  never actually uses the refresh token — it stores only the access
+  token (`localStorage`) and redirects to `/login` on a 401. A real
+  refresh flow (silent re-auth before expiry) is not yet built.
+- **Background jobs:** none — every CV parse and file upload runs
+  synchronously in the request/response cycle today. `BackgroundTasks`/
+  a real queue (Celery/RQ + Redis) for OCR/re-parse is target design
+  once those features themselves exist, not something to build ahead of
+  them.
 
 ## CV Parser dependencies
 
-- `pdfplumber` / `PyMuPDF` — text PDF extraction.
-- `python-docx` / `docx2txt` — Word documents.
+**Implemented today:** `pdfplumber` (PDF text extraction) and
+`python-docx` (`.docx` text extraction) only — confirmed against
+`backend/requirements.txt` and the imports in
+`backend/app/services/cv_parser.py`. Extraction itself is regex/string-
+section-splitting, no NLP library involved.
+
+**Target design, not yet implemented:**
+- `PyMuPDF` / `docx2txt` — alternate/fallback extraction libraries.
 - `pytesseract` (Tesseract OCR) — scanned/image PDF fallback.
 - `spaCy` (+ a small English model, e.g. `en_core_web_sm`, plus rule-based
-  `Matcher` patterns) — structured field extraction.
+  `Matcher` patterns) — structured field extraction beyond regex.
 - `llama-cpp-python` or an Ollama HTTP client — local SLM inference
   (Qwen2.5-3B-Instruct or Phi-3.5-mini-instruct, quantized GGUF).
   Self-hosted, no external API calls. See
@@ -38,6 +51,9 @@
 - **Data fetching/cache:** TanStack Query (React Query) — fits a
   drag-and-drop board well via optimistic updates on stage moves.
 - **Drag-and-drop:** `dnd-kit`.
+- **Tables:** MUI X DataGrid — powers the Jobs/Candidates lists and a
+  job's pipeline table view (see
+  [06-ui-design-system.md](06-ui-design-system.md)).
 - **Charts:** MUI X Charts — see
   [05-dashboards-metrics.md](05-dashboards-metrics.md#visualization-approach)
   for why (stays inside the same MD3 theming rather than a second charting
@@ -87,11 +103,21 @@ recruitfast/
 
 ## Local dev setup (once scaffolding lands)
 
-```bash
-# Postgres (already running locally per the brief) — create the DB:
-createdb -U postgres recruitfast
+**Critical: the API must connect as a non-superuser Postgres role**, or
+RLS is silently bypassed entirely — see
+[02-data-model.md](02-data-model.md#row-level-security-rls-model) for why.
+`createdb -U postgres` alone is not enough; a dedicated `recruitfast_app`
+login role has to own the database before `alembic upgrade head` runs, so
+it owns every object from the start:
 
-# Backend
+```bash
+# Run once, as postgres, against a fresh Postgres instance:
+psql -U postgres -c "CREATE ROLE recruitfast_app LOGIN PASSWORD '<pick-your-own-local-password>'"
+psql -U postgres -c "CREATE DATABASE recruitfast OWNER recruitfast_app"
+psql -U postgres -d recruitfast -c "ALTER SCHEMA public OWNER TO recruitfast_app"
+
+# Backend — DATABASE_URL in backend/.env must point at recruitfast_app,
+# never at postgres or any other superuser role.
 cd backend && python -m venv .venv && .venv/Scripts/activate
 pip install -r requirements.txt
 alembic upgrade head

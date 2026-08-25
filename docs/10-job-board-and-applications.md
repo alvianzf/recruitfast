@@ -68,9 +68,12 @@ copies, not the raw API URL.
 ## Job board pages (public, no auth)
 
 - `GET /public/boards/{slug}` (Org board) and the fixed Freelance board: lists
-  that tenant's `open`-status jobs — title, overview, description, JD
-  file if attached. No candidate, pipeline, or recruiter-identity data is
-  ever on this surface.
+  that tenant's `open`-status, `public`-visibility jobs. The listing
+  itself is deliberately minimal — `id`, `title`, `overview`,
+  `applicant_count` (`PublicJobSummary`) — no `description` and no JD
+  file; those only appear on the single-job detail endpoint below. No
+  candidate, pipeline, or recruiter-identity data is ever on this
+  surface.
 - Each job has an **Apply** button opening the application flow below.
 - Each job card/detail shows an **applicant counter** — *"{N} people
   applied"* — a `COUNT(job_applications)` for that job, public and
@@ -274,7 +277,7 @@ worth being explicit about exactly how narrow it is.
 ### `tenants.slug`
 | column | type | notes |
 |---|---|---|
-| slug | text, unique, nullable | null for the Freelance Org (fixed `/jobs/public` route instead) and for non-published orgs |
+| slug | text, unique, nullable | null for the Freelance Org (fixed `/careers/public` route instead — see "Frontend URL deviation" above). Every Org tenant gets a slug at creation; there's no "unpublished" state that withholds one. |
 
 ### `job_screening_questions`
 | column | type | notes |

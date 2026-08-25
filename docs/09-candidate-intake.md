@@ -41,18 +41,33 @@ job) uses the same modal shape:
 
 ## CV upload (single or batch)
 
-**Entry points:** "Add candidate" on the Candidates page (global — not
-attached to any job), and "Add candidate" inside a job's `Sourced` column
-(Kanban ⋮ menu or a button above the Table view) — attaches each resulting
-candidate to that job's pipeline directly, skipping a separate manual
-attach step.
+**Entry point — target design:** "Add candidate" on the Candidates page
+(global — not attached to any job), and "Add candidate" inside a job's
+`Sourced` column (Kanban ⋮ menu or a button above the Table view) —
+attaching each resulting candidate to that job's pipeline directly,
+skipping a separate manual attach step.
+
+**Implemented today:** only the global entry point exists (`CvUploadModal`
+launched from the Candidates page). There is no job-scoped upload
+anywhere — no "Add candidate" affordance on `JobDetail.tsx`, and the
+backend commit endpoint (`POST /candidates/cv/commit`) has no `job_id`
+field at all. Attaching an uploaded candidate to a job today is a
+separate, manual step (the existing "Attach candidate" dialog on Job
+Detail, which searches already-created candidates).
+
+**Freelance Org note:** a candidate created this way is private to the
+uploading recruiter by default — see
+[01-roles-permissions.md](01-roles-permissions.md). Org tenant candidates
+are unaffected, still visible org-wide.
 
 **Flow:**
 
 1. Drop zone accepts **multiple files at once** — batch-sourcing (a
    recruiter dragging in 20 CVs from a folder) is the common case, not the
-   exception. Accepted types: `.pdf`, `.doc`, `.docx`. Max 10 MB per file,
-   50 files per batch (soft cap — see
+   exception. Accepted types: `.pdf`, `.docx` (legacy `.doc` is rejected —
+   the LibreOffice conversion step it needs isn't built, see
+   [04-cv-parser.md](04-cv-parser.md)). Max 10 MB per file, 50 files per
+   batch (soft cap — see
    [Limits](#limits--what-happens-at-the-edges)).
 2. Each file starts parsing immediately in the background (the pipeline in
    [04-cv-parser.md](04-cv-parser.md)) as soon as it's dropped — recruiters
@@ -62,24 +77,31 @@ attach step.
    - Once parsed: name, position, and years of experience as the row
      summary (email/phone are collected but not the headline — a
      recruiter scanning 20 rows recognizes "DevOps Engineer, 7 yrs" faster
-     than an email address). Full detail — summary, skills by category,
-     education, certifications, project history — is one click away in
-     an expanded row, per the parsed field schema in
-     [04-cv-parser.md](04-cv-parser.md#parsed-field-schema-candidate_documentsparsed_fields).
-     Confidence flagging is per-field/per-array-item as described there;
-     a file with any low-confidence field shows a "Needs review" chip,
-     and expanding the row surfaces exactly which field/project/skill
-     needs a look rather than making the recruiter hunt for it.
+     than an email address), plus a **"Needs review" chip** when
+     `parse_status = 'needs_review'` (which is every parse today — see
+     [04-cv-parser.md](04-cv-parser.md)). **Target design:** full detail —
+     summary, skills by category, education, certifications, project
+     history — one click away in an expanded row, with per-field
+     confidence highlighting exactly which value needs a look. **Not yet
+     implemented:** the preview row has no expand/accordion at all today;
+     the flat summary + chip above is all that's shown pre-commit (full
+     detail only becomes visible after committing, on Candidate Detail or
+     the Quick View drawer — see
+     [06-ui-design-system.md](06-ui-design-system.md)).
    - **Duplicate flag**: if `dedup_fingerprint` matches an existing
-     candidate, the row shows *"Possibly [Existing Name]"* with a choice —
-     **Create new** / **Attach existing candidate to this job instead**
-     (only shown when opened from within a job) / **Skip this file**.
-     Mirrors [04-cv-parser.md](04-cv-parser.md#duplicate--reapplication-handling).
+     candidate, the row shows *"Possibly [Existing Name]"*. **Target
+     design** offers a three-way choice — Create new / Attach existing
+     candidate to this job instead (only shown when opened from within a
+     job) / Skip this file. **Implemented today:** only **Create new
+     anyway** / **Skip this file** — there's no "attach existing" option
+     in this flow, or anywhere else in the app. Mirrors
+     [04-cv-parser.md](04-cv-parser.md#duplicate--reapplication-handling).
    - Parse failures (corrupt file, unsupported content, empty extraction)
      show an inline error and an **"Add anyway with manual entry"**
-     fallback — a failed parse never blocks adding the candidate, per the
-     no-hard-failure principle already established for OCR/non-English
-     resumes.
+     fallback — a failed parse never blocks adding the candidate. (Note:
+     this is the only source of parse "failure" today — there's no
+     OCR/non-English handling to fail gracefully from yet, see
+     [04-cv-parser.md](04-cv-parser.md).)
    - A remove (✕) action per row, no confirmation needed — nothing's
      committed yet.
 4. Commit button reads **"Add {N} candidates"** where N excludes removed
@@ -89,11 +111,20 @@ attach step.
 
 ## CSV/Excel bulk import
 
-**Entry point:** "Import candidates" next to "Add candidate" on the
-Candidates page. Global only in P0 — importing directly into a specific
-job's pipeline is a natural follow-up but out of scope until the base flow
-is validated (a P1 note: importing into a job would reuse this exact
-modal with a job pre-selected, no new mechanism needed).
+**Status: backend-only.** Every endpoint below (`/candidates/import/*`)
+is implemented and matches this spec (template generation, preview,
+commit, row cap, encoding fallback, `candidate_import_batches` tracking
+row) — verified against `backend/app/api/routers/bulk_import.py` and
+`backend/app/services/bulk_import.py`. **There is no frontend UI for it
+at all yet** — no "Import candidates" button, no modal, nothing in
+`frontend/src`. This flow is only reachable directly against the API
+today (e.g. via curl or a future frontend change), not from the product.
+
+**Entry point — target design:** "Import candidates" next to "Add
+candidate" on the Candidates page. Global only in P0 — importing directly
+into a specific job's pipeline is a natural follow-up but out of scope
+until the base flow is validated (a P1 note: importing into a job would
+reuse this exact modal with a job pre-selected, no new mechanism needed).
 
 **Downloadable template:** the modal's drop zone is preceded by a
 **"Download example CSV"** / **"Download example Excel"** link pair — this
