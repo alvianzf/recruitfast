@@ -6,6 +6,7 @@ import PersonAddAlt1OutlinedIcon from "@mui/icons-material/PersonAddAlt1Outlined
 import ViewKanbanIcon from "@mui/icons-material/ViewKanban";
 import ViewListIcon from "@mui/icons-material/ViewList";
 import LinkIcon from "@mui/icons-material/Link";
+import TuneOutlinedIcon from "@mui/icons-material/TuneOutlined";
 
 import { useJob } from "../api/jobs";
 import { useJobStages, usePlacements, useMovePlacement, useUpdatePlacementStatus, type Placement } from "../api/pipeline";
@@ -15,6 +16,7 @@ import KanbanBoard from "../components/KanbanBoard";
 import AttachCandidateDialog from "../components/AttachCandidateDialog";
 import JobApplicationsPanel from "../components/JobApplicationsPanel";
 import JobAssignmentControl from "../components/JobAssignmentControl";
+import ManagePipelineDialog from "../components/ManagePipelineDialog";
 
 // Kanban is the default view inside a single job's pipeline (docs/03) —
 // unlike the Jobs list itself, which is always Table.
@@ -24,6 +26,7 @@ export default function JobDetail() {
   const { jobId = "" } = useParams();
   const [view, setView] = useState<ViewMode>("kanban");
   const [attachOpen, setAttachOpen] = useState(false);
+  const [managePipelineOpen, setManagePipelineOpen] = useState(false);
 
   const { data: job } = useJob(jobId);
   const { data: stages, isLoading: stagesLoading } = useJobStages(jobId);
@@ -95,6 +98,11 @@ export default function JobDetail() {
           </IconButton>
         </Tooltip>
         <JobAssignmentControl job={job} />
+        <Tooltip title="Manage pipeline stages">
+          <IconButton size="small" onClick={() => setManagePipelineOpen(true)}>
+            <TuneOutlinedIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
         <ToggleButtonGroup size="small" exclusive value={view} onChange={(_, next) => next && setView(next)}>
           <ToggleButton value="kanban">
             <ViewKanbanIcon fontSize="small" />
@@ -138,6 +146,12 @@ export default function JobDetail() {
       <JobApplicationsPanel jobId={jobId} />
 
       <AttachCandidateDialog jobId={jobId} open={attachOpen} onClose={() => setAttachOpen(false)} />
+      <ManagePipelineDialog
+        jobId={jobId}
+        stages={stages ?? []}
+        open={managePipelineOpen}
+        onClose={() => setManagePipelineOpen(false)}
+      />
     </Stack>
   );
 }

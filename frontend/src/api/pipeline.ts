@@ -78,6 +78,42 @@ export function useAddStage(jobId: string) {
   });
 }
 
+export function useRenameStage(jobId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ stageId, name }: { stageId: string; name: string }) =>
+      (await api.patch<JobStage>(`/stages/${stageId}`, { name })).data,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["job-stages", jobId] }),
+  });
+}
+
+export function useReorderStages(jobId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (stageIds: string[]) =>
+      (await api.put<JobStage[]>(`/jobs/${jobId}/stages/reorder`, { stage_ids: stageIds })).data,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["job-stages", jobId] }),
+  });
+}
+
+// 409 with { detail: "N candidate(s) are in this stage..." } means the
+// stage is occupied — the caller must retry with reassignToStageId set
+// (see docs/03's non-empty-stage-deletion rule).
+export function useDeleteStage(jobId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ stageId, reassignToStageId }: { stageId: string; reassignToStageId?: string }) => {
+      await api.delete(`/stages/${stageId}`, {
+        params: reassignToStageId ? { reassign_to_stage_id: reassignToStageId } : undefined,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["job-stages", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["placements", jobId] });
+    },
+  });
+}
+
 export function useBlacklistCandidate() {
   const queryClient = useQueryClient();
   return useMutation({
