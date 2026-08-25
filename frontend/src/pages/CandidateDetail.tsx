@@ -325,6 +325,24 @@ export default function CandidateDetail() {
                     </Stack>
                   </Paper>
                 )}
+
+                {doc.parsed_fields.certifications && doc.parsed_fields.certifications.length > 0 && (
+                  <Paper sx={{ p: 2.5 }}>
+                    <Typography sx={{ fontWeight: 700, mb: 1 }}>Certifications</Typography>
+                    <Stack spacing={1}>
+                      {doc.parsed_fields.certifications.map((cert, i) => (
+                        <Stack key={i}>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            {cert.name}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {[cert.issuer, cert.year_issued].filter(Boolean).join(" · ")}
+                          </Typography>
+                        </Stack>
+                      ))}
+                    </Stack>
+                  </Paper>
+                )}
               </>
             )}
           </Stack>
