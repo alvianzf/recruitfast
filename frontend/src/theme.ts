@@ -7,8 +7,8 @@ import { createTheme, type PaletteMode } from "@mui/material";
 // Dense data tables opt back out on the specific instance
 // (sx={{ backdropFilter: "none", backgroundColor: "background.paper" }}).
 // See docs/06-ui-design-system.md.
-export const BRAND_PRIMARY = "#990000";
-export const BRAND_PRIMARY_LIGHT = "#c62a2a";
+export const BRAND_PRIMARY = "#3D6B94";
+export const BRAND_PRIMARY_LIGHT = "#7CA8CC";
 export const OFF_WHITE = "#f7f5f2";
 
 export function buildTheme(mode: PaletteMode) {
@@ -32,9 +32,9 @@ export function buildTheme(mode: PaletteMode) {
         // visually identical and parses fine. The visible background is
         // the off-white .app-background gradient in index.css.
         default: "rgba(0,0,0,0)",
-        paper: isDark ? "#241019" : "#ffffff",
+        paper: isDark ? "#12202E" : "#ffffff",
       },
-      divider: isDark ? "rgba(255,255,255,0.08)" : "rgba(60,10,20,0.08)",
+      divider: isDark ? "rgba(255,255,255,0.08)" : "rgba(15,40,60,0.08)",
     },
     shape: {
       borderRadius: 20,
@@ -60,14 +60,14 @@ export function buildTheme(mode: PaletteMode) {
             backgroundImage: "none",
             ...(theme.palette.mode === "dark"
               ? {
-                  backgroundColor: "rgba(36, 16, 25, 0.72)",
+                  backgroundColor: "rgba(18, 32, 46, 0.72)",
                   backdropFilter: "blur(20px) saturate(140%)",
                   border: "1px solid rgba(255, 255, 255, 0.09)",
                 }
               : {
                   backgroundColor: "rgba(255, 255, 255, 0.72)",
                   backdropFilter: "blur(20px) saturate(140%)",
-                  border: "1px solid rgba(153, 0, 0, 0.08)",
+                  border: "1px solid rgba(61, 107, 148, 0.08)",
                 }),
           }),
         },
@@ -77,7 +77,7 @@ export function buildTheme(mode: PaletteMode) {
           root: ({ theme }) => ({
             backgroundImage: "none",
             backgroundColor:
-              theme.palette.mode === "dark" ? "rgba(26, 10, 18, 0.6)" : "rgba(255, 255, 255, 0.6)",
+              theme.palette.mode === "dark" ? "rgba(10, 20, 32, 0.6)" : "rgba(255, 255, 255, 0.6)",
             backdropFilter: "blur(24px) saturate(140%)",
             boxShadow: "none",
             borderRight: `1px solid ${theme.palette.divider}`,

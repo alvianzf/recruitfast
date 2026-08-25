@@ -18,21 +18,21 @@ body {
   inset: 0;
   z-index: -1;
   background:
-    radial-gradient(circle at 15% 15%, rgba(153, 0, 0, 0.35), transparent 45%),
-    radial-gradient(circle at 85% 20%, rgba(255, 120, 90, 0.22), transparent 50%),
-    radial-gradient(circle at 50% 100%, rgba(60, 10, 40, 0.35), transparent 55%),
-    linear-gradient(160deg, #1a0a12 0%, #2b0c14 45%, #170a14 100%);
-  background-color: #170a14;
+    radial-gradient(circle at 15% 15%, rgba(61, 107, 148, 0.35), transparent 45%),
+    radial-gradient(circle at 85% 20%, rgba(124, 168, 204, 0.22), transparent 50%),
+    radial-gradient(circle at 50% 100%, rgba(20, 45, 65, 0.35), transparent 55%),
+    linear-gradient(160deg, #0a1420 0%, #0f2436 45%, #0a1420 100%);
+  background-color: #0a1420;
 }
 
 /* Off-white base — a faint brand tint for depth (glass needs *some*
-   variation in the backdrop to read as glass), not the vivid warm
-   gradient this used to be. */
+   variation in the backdrop to read as glass), not the vivid gradient
+   this used to be. */
 :root[data-theme="light"] .app-background,
 .app-background.light {
   background:
-    radial-gradient(circle at 15% 10%, rgba(153, 0, 0, 0.05), transparent 45%),
-    radial-gradient(circle at 85% 15%, rgba(153, 0, 0, 0.04), transparent 50%),
+    radial-gradient(circle at 15% 10%, rgba(61, 107, 148, 0.05), transparent 45%),
+    radial-gradient(circle at 85% 15%, rgba(61, 107, 148, 0.04), transparent 50%),
     #f7f5f2;
   background-color: #f7f5f2;
 }

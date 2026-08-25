@@ -16,7 +16,7 @@ export default function Logo({ compact = false }: { compact?: boolean }) {
           justifyContent: "center",
           flexShrink: 0,
           p: 0.5,
-          boxShadow: "0 4px 14px -4px rgba(153, 0, 0, 0.5)",
+          boxShadow: "0 4px 14px -4px rgba(61, 107, 148, 0.5)",
         }}
       >
         <Box
