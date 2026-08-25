@@ -84,6 +84,32 @@ export function useCandidate(candidateId: string) {
   });
 }
 
+export interface CandidateCv {
+  url: string;
+  filename: string;
+}
+
+export function candidateCvDownloadUrl(candidateId: string): string {
+  return `/candidates/${candidateId}/cv`;
+}
+
+export function useCandidateCv(candidateId: string | null) {
+  return useQuery({
+    queryKey: ["candidate-cv", candidateId],
+    queryFn: async (): Promise<CandidateCv> => {
+      const response = await api.get(`/candidates/${candidateId}/cv`, { responseType: "blob" });
+      const disposition = response.headers["content-disposition"] as string | undefined;
+      const match = disposition?.match(/filename\*?=(?:utf-8'')?"?([^";]+)"?/i);
+      const filename = match ? decodeURIComponent(match[1]) : "cv.pdf";
+      return { url: URL.createObjectURL(response.data), filename };
+    },
+    enabled: !!candidateId,
+    retry: false,
+    staleTime: Infinity,
+    gcTime: 0,
+  });
+}
+
 export function useCvParsePreview() {
   return useMutation({
     mutationFn: async (files: File[]) => {

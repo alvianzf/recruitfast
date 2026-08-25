@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
-import { Paper, Stack } from "@mui/material";
+import { IconButton, Paper, Stack, Tooltip } from "@mui/material";
 import { DataGrid, GridToolbar, type GridColDef } from "@mui/x-data-grid";
 import { useNavigate } from "react-router-dom";
 import UploadFileOutlinedIcon from "@mui/icons-material/UploadFileOutlined";
+import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 
 import { useCandidates, type Candidate } from "../api/candidates";
 import { useBlacklistStatuses, type BlacklistStatus } from "../api/blacklist";
@@ -10,12 +11,15 @@ import PageHeader from "../components/PageHeader";
 import EmptyState from "../components/EmptyState";
 import CvUploadModal from "../components/CvUploadModal";
 import BlacklistBadge from "../components/BlacklistBadge";
+import CandidateQuickView from "../components/CandidateQuickView";
 
 export default function Candidates() {
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [quickViewId, setQuickViewId] = useState<string | null>(null);
   const { data: candidates, isLoading } = useCandidates();
   const navigate = useNavigate();
   const { data: blacklistStatuses } = useBlacklistStatuses(candidates?.map((c) => c.email) ?? []);
+  const candidateIds = useMemo(() => candidates?.map((c) => c.id) ?? [], [candidates]);
 
   const statusByEmail = useMemo(() => {
     const map = new Map<string, BlacklistStatus>();
@@ -38,6 +42,26 @@ export default function Candidates() {
       filterable: false,
       renderCell: (params) =>
         params.row.email ? <BlacklistBadge status={statusByEmail.get(params.row.email.toLowerCase())} /> : null,
+    },
+    {
+      field: "actions",
+      headerName: "",
+      width: 60,
+      sortable: false,
+      filterable: false,
+      renderCell: (params) => (
+        <Tooltip title="Quick view">
+          <IconButton
+            size="small"
+            onClick={(e) => {
+              e.stopPropagation();
+              setQuickViewId(params.row.id);
+            }}
+          >
+            <VisibilityOutlinedIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      ),
     },
   ];
 
@@ -77,6 +101,12 @@ export default function Candidates() {
       </Paper>
 
       <CvUploadModal open={uploadOpen} onClose={() => setUploadOpen(false)} />
+      <CandidateQuickView
+        candidateIds={candidateIds}
+        currentId={quickViewId}
+        onNavigate={setQuickViewId}
+        onClose={() => setQuickViewId(null)}
+      />
     </Stack>
   );
 }
