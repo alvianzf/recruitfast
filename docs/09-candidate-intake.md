@@ -246,6 +246,29 @@ duplicate detection in this flow — no new dedup mechanism.
   beyond 50 are rejected client-side with a message to split into two
   uploads), not a backend constraint, since nothing about the parse
   pipeline actually requires it.
+- **Total request size (nginx, not in this repo — see the deployment
+  notes):** `client_max_body_size` on the API vhost caps the whole
+  multipart request, not any single file — the "10 MB per file" limit is
+  enforced in the app (`cv_parser.py`'s `MAX_FILE_SIZE_BYTES`), but a
+  multi-file batch's *combined* size is capped separately, one layer
+  earlier, by nginx. **Bug found and fixed 2026-08-27:** the API vhost's
+  `client_max_body_size` was set to `10m` — matching the *per-file* limit
+  by coincidence, but applying to the *whole request* — so any batch of
+  more than one file (or a single file near the 10 MB ceiling, plus
+  multipart overhead) got rejected by nginx with a 413 **before it ever
+  reached the app**. Because that rejection happens ahead of FastAPI's
+  `CORSMiddleware`, the response carries no CORS headers either, so the
+  browser reports it as a CORS failure — a genuinely confusing symptom
+  pointing nowhere near the real cause. Raised to `150m` (comfortable
+  headroom for a realistic batch of up to 50 files without allowing an
+  unbounded request). **Also fixed the silent-failure half of this bug:**
+  `CvUploadModal.tsx`'s `addFiles` previously let a failed
+  `parse-preview` call reject uninitiated — nothing in the UI ever
+  indicated why an upload didn't work, which read as "the drop zone
+  broke" (and was easy to misattribute to something unrelated the
+  recruiter did right before, like cancelling a prior attempt). It now
+  catches the failure and shows a toast, with a specific message for a
+  413.
 - **Encoding:** CSV parsing assumes UTF-8 first, falls back to
   Windows-1252 (the common source of "weird character" bugs from
   Excel-exported CSVs on Windows) before erroring the whole file.
