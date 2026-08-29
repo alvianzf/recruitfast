@@ -5,9 +5,45 @@
 ### Superadmin (platform level)
 
 **Can:**
-- Create/suspend Org tenants; provision the first Org Admin for a new org.
-- Manage the Freelance Org's membership: review/approve/reject freelance
-  recruiter registrations.
+- Create Org tenants and provision the first Org Admin for a new org in
+  one call (`POST /admin/organizations`), or register an additional
+  admin for an existing org later (`POST
+  /admin/organizations/{tenant_id}/admins`). **Implemented** — the
+  `/app/admin/organizations` page. **Suspending** an org tenant
+  (`tenants.status = 'suspended'`) is schema-only — no UI/API sets it
+  yet.
+- Create other superadmin accounts (`POST /admin/superadmins`) and
+  activate/deactivate any platform user, any role
+  (`PATCH /admin/users/{id}/status`), from the same page's Users tab.
+  Deactivating requires confirmation; a superadmin cannot deactivate
+  their own account (self-lockout guard). None of these create payloads
+  accept a client-supplied role — the role granted is hardcoded per
+  endpoint (org admin, superadmin, etc.), so there's no request shape
+  that grants more access than the endpoint itself is named for. The
+  only way to forge superadmin access is to forge a valid JWT.
+- View the Freelance Org's self-registered members (`GET
+  /admin/freelance-applications`). This is visibility, not a gate:
+  registration itself grants immediate access, it does not wait on
+  Superadmin action. Removing a bad-faith account is the same generic
+  `PATCH /admin/users/{id}/status` deactivate used for any user — there
+  is no freelance-specific reject/delete action once an account is live
+  (it may already own real candidates/jobs). See "Freelance recruiter
+  registration flow" below.
+- Set an Org's **recruiter seat limit** (`PATCH
+  /admin/organizations/{tenant_id}/seats`, added 2026-08-26) — a number
+  mirroring the /pricing tiers, or null for unlimited (the Custom tier).
+  Only recruiter-role seats are counted; org_admin seats are separate and
+  uncapped. See
+  [02-data-model.md](02-data-model.md) (`tenants.max_recruiter_seats`).
+- **Revoke a candidate's Open Profile opt-in** (`candidates.open_to_other_roles`,
+  once already `true`): the only role allowed to flip it back to
+  `false`. A recruiter or org_admin attempting the same `PATCH
+  /candidates/{id}` gets a 403 (`backend/app/api/routers/candidates.py`'s
+  `update_candidate`). The candidate's own consent to opt out is treated
+  as something only platform-level intervention should act on, not
+  something any recruiter who happens to have that candidate attached to
+  a job can quietly undo. See
+  [10-job-board-and-applications.md](10-job-board-and-applications.md#open-profiles-a-narrow-deliberate-rls-exception).
 - Manage billing: plans, subscriptions, invoices, usage-based limits.
 - View platform-wide **aggregate** metrics (counts, trends) — never
   record-level content. **Implemented today:** tenant/recruiter/queue
@@ -53,11 +89,20 @@ built; see [02-data-model.md](02-data-model.md) and
 ### Org Admin (one org tenant)
 
 **Can:**
-- Invite/deactivate/reassign Recruiters within their org (seat management).
+- Invite/deactivate/reassign Recruiters within their org (seat
+  management) — capped by the org's superadmin-set recruiter seat limit
+  (`tenants.max_recruiter_seats`, added 2026-08-26). Inviting past the
+  limit 400s with a message naming the limit; a superadmin has to raise
+  it (or clear it for unlimited) before more recruiters can join. See
+  [02-data-model.md](02-data-model.md).
 - Full read visibility into every recruiter's jobs, candidates, pipelines,
   and stage history in their org — this is the point of the role.
-- Assign new jobs to a recruiter, or leave them in an "Unassigned Jobs"
-  queue recruiters self-claim from.
+- Create job postings and assign them — to one specific recruiter, to a
+  whole **Team** (any recruiter on that team can self-claim it), or leave
+  a job open to the whole org's "Unassigned Jobs" self-claim queue.
+  **Admins never own a job themselves** — creating/assigning a job is not
+  "doing recruiter work"; see the bullet below and
+  [03-pipelines-and-boards.md](03-pipelines-and-boards.md).
 - Bulk-reassign all of one recruiter's jobs to another (recruiter
   leaves/is out) — first-class action, not a manual one-by-one fix. This
   moves jobs of any status (open, on-hold, won, lost), not just open
@@ -67,6 +112,30 @@ built; see [02-data-model.md](02-data-model.md) and
   [05-dashboards-metrics.md](05-dashboards-metrics.md).
 - Edit org-wide pipeline templates, custom field definitions, and org
   billing/seat count (within Superadmin-set plan limits).
+- Manage the org's public profile (`/app/org/profile`) — logo (drag-drop
+  upload or a pasted image URL — see `ImageUploadField.tsx`), description,
+  office location, and contact email — shown on the org's public career
+  page. See
+  [10-job-board-and-applications.md](10-job-board-and-applications.md#org-profile-org_admin-editable).
+- Create/edit the org's **Clients** roster (`/app/clients`, added
+  2026-08-26) — the companies the org's jobs are worked on behalf of.
+  Any recruiter in the org can read the roster (needed to pick a client
+  on a job) and view a client's metrics, but only org_admin can
+  create/edit an entry. See
+  [02-data-model.md](02-data-model.md#clients-org-only-added-2026-08-26).
+- **Admins don't do recruiter work — changed 2026-08-26.** Previously, an
+  org_admin creating a job without explicitly leaving it "unassigned"
+  became its owner (`owner_recruiter_id` = the admin's own id) — the
+  admin was, in effect, working the job like a recruiter. Fixed: an
+  admin-created job's `owner_recruiter_id` is now *always* null; the
+  admin can instead pick a **Team** to assign it to (`JobCreate.team_id`)
+  at creation, or leave it fully open. Both `POST /jobs/{id}/assign`
+  (org_admin-only) and `POST /jobs/{id}/claim` (self-claim) now enforce
+  the target/claimer actually has role `recruiter` — an admin can no
+  longer assign a job to another admin, to themselves, or self-claim one.
+  A recruiter creating a job is still always its own owner, unchanged.
+  See [02-data-model.md](02-data-model.md) and
+  [03-pipelines-and-boards.md](03-pipelines-and-boards.md).
 - Override a candidate's pipeline stage directly. This is allowed, but is
   never silent: the resulting `stage_history` row is flagged
   `was_admin_override = true`, which the UI reads to show a distinct
@@ -121,7 +190,11 @@ built; see [02-data-model.md](02-data-model.md) and
   uploading freelancer's fellow freelancers — the same as it always has
   for cross-tenant Open Profiles sharing. A private candidate becomes
   fully public (not "shared within my tenant only") the moment that box
-  is checked; there's no in-between visibility tier.
+  is checked; there's no in-between visibility tier. **This also isn't
+  reversible by a recruiter once set** (see Superadmin's "Revoke a
+  candidate's Open Profile opt-in" above). `EditCandidateDialog.tsx`'s
+  "Open Profile" switch is disabled with an explanatory caption once
+  already true, unless the current user is a superadmin.
   Jobs are **not** covered by this — every Freelance Org job is still
   visible to every freelancer in that tenant, same as an Org tenant's
   jobs are to its recruiters. A per-job "mark confidential" capability
@@ -135,16 +208,24 @@ built; see [02-data-model.md](02-data-model.md) and
 Not a separate role in the permission model — a Recruiter whose tenant is
 the platform-owned Freelance Org. They get the standard Recruiter
 permission set, scoped to that tenant. The only difference is *how they got
-there*: self-registration + Superadmin approval, below.
+there*: public self-registration, immediate access, below.
 
 ## Permission matrix
 
 | Action | Superadmin | Org Admin | Recruiter |
 |---|:---:|:---:|:---:|
-| Create/suspend org tenants | ✅ | ❌ | ❌ |
+| Create org tenants + first admin | ✅ | ❌ | ❌ |
+| Suspend org tenants | ❌ (schema-only) | ❌ | ❌ |
+| Register additional org admins | ✅ | ❌ | ❌ |
+| Create other superadmins | ✅ | ❌ | ❌ |
+| Activate/deactivate any platform user | ✅ | Own org's recruiters only | ❌ |
 | Manage billing/plans | ✅ | Seat count only | ❌ |
-| Approve Freelance Org registrations | ✅ | ❌ | ❌ |
+| Set an org's recruiter seat limit (`max_recruiter_seats`) | ✅ | ❌ (sees usage, can't change the cap) | ❌ |
+| View Freelance Org registrations (visibility only, no gate) | ✅ | ❌ | ❌ |
+| Revoke a candidate's Open Profile opt-in | ✅ | ❌ | ❌ |
 | Invite/deactivate recruiters in own org | ❌ | ✅ | ❌ |
+| Edit own org's public profile (logo/description/location/contact) | ❌ | ✅ | ❌ |
+| Leave a created job unassigned/claimable | ❌ (no org) | ✅ | ❌ (always self-owned) |
 | View own org's jobs/candidates | ❌ (blocked) | ✅ | ✅ (own + org-shared) |
 | View another org's jobs/candidates | ❌ | ❌ | ❌ |
 | Edit pipeline template (org-wide) | ❌ | ✅ | ❌ (per-job only) |
@@ -159,21 +240,28 @@ the entry point. It is *only* for freelance recruiters — Org tenants are
 provisioned by Superadmin creating the Org Admin account directly (agencies
 are a sales-assisted onboarding, not self-serve, in P0).
 
-1. **Register** → form collects: name, email, phone, LinkedIn/portfolio
-   URL, years of recruiting experience, industry specialization/niche, and
-   an optional note on prior placements. No payment info at this step.
-2. Account is created in `pending_approval` status; applicant gets a
-   confirmation email. They cannot log in to the product yet.
-3. Superadmin sees the application in an **Approval Queue** (this is the
-   *only* recruiter-adjacent content a Superadmin is allowed to see — it's
-   pre-tenant, not yet recruiter work product).
-4. Superadmin approves or rejects, with a reason. Rejection emails the
-   reason to the applicant and deletes the pending account (no residual
-   data — nothing was created yet).
-5. On approval: applicant gets an activation email, sets a password, and
-   lands in a short onboarding wizard: specialization/tag selection (drives
-   future candidate-matching) → guided empty state ("Upload your first
-   resume" / "Post your first job") instead of a blank dashboard.
+1. **Register** → form collects: name, email, password, phone,
+   LinkedIn/portfolio URL, years of recruiting experience, industry
+   specialization/niche, and an optional note on prior placements. No
+   payment info at this step.
+2. Account is created directly in `active` status and the applicant is
+   signed in immediately — **there is no Superadmin approval gate**. The
+   submitted details are still recorded as a `FreelanceApplication` row
+   (pre-set to `approved`) so a Superadmin can see who has joined, but
+   nothing blocks on that review.
+3. If a Superadmin later needs to remove a bad-faith or otherwise
+   problematic account, the existing generic
+   `PATCH /admin/users/{id}/status` (Activate/deactivate any platform
+   user) is the mechanism — same as deactivating any other user. There is
+   no freelance-specific reject/delete action once an account is live,
+   since it may already own real candidates/jobs.
+
+**Planned, not built:** a subscription/payment gate is the intended future
+replacement for any access control on freelance registration — e.g.
+requiring a plan selection or card on file before (or shortly after)
+self-registration. See
+[08-open-questions-and-gaps.md](08-open-questions-and-gaps.md). Until
+that ships, self-registration is fully open.
 
 Data ownership note for departing freelancers is a deliberate open decision
 — see [08-open-questions-and-gaps.md](08-open-questions-and-gaps.md#3-multi-tenancy-data-isolation).
