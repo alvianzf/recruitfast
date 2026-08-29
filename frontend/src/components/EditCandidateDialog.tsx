@@ -13,6 +13,8 @@ import {
 } from "@mui/material";
 
 import { useUpdateCandidate, type Candidate, type CandidateUpdateInput } from "../api/candidates";
+import { useAuth } from "../auth/AuthContext";
+import { useMe } from "../api/users";
 import { useToast } from "./ToastProvider";
 
 export default function EditCandidateDialog({
@@ -26,6 +28,14 @@ export default function EditCandidateDialog({
 }) {
   const update = useUpdateCandidate(candidate.id);
   const { showToast } = useToast();
+  const { user } = useAuth();
+  const { data: me } = useMe();
+  const canRevokeOpenProfile = candidate.open_to_other_roles ? user?.role === "superadmin" : true;
+  // Freelance recruiters have no team, and their candidates are private
+  // to them by default (not shared org-wide the way an Org tenant's
+  // are) — "not just this tenant/team" was actively wrong for them, not
+  // just unclear. Give each context its own accurate baseline.
+  const isFreelance = me?.tenant_type === "freelance_org";
   const [form, setForm] = useState<CandidateUpdateInput>({
     full_name: candidate.full_name,
     email: candidate.email ?? "",
@@ -33,6 +43,7 @@ export default function EditCandidateDialog({
     source: candidate.source ?? "",
     current_position: candidate.current_position ?? "",
     total_years_experience: candidate.total_years_experience ?? "",
+    location: candidate.location ?? "",
     linkedin_url: candidate.linkedin_url ?? "",
     github_url: candidate.github_url ?? "",
     portfolio_url: candidate.portfolio_url ?? "",
@@ -67,6 +78,7 @@ export default function EditCandidateDialog({
           <TextField label="Phone" fullWidth {...field("phone")} />
           <TextField label="Source" fullWidth {...field("source")} />
           <TextField label="Position" fullWidth {...field("current_position")} />
+          <TextField label="Location" fullWidth {...field("location")} />
           <TextField label="Years of experience" fullWidth {...field("total_years_experience")} />
           <TextField label="LinkedIn URL" fullWidth {...field("linkedin_url")} />
           <TextField label="GitHub URL" fullWidth {...field("github_url")} />
@@ -76,14 +88,18 @@ export default function EditCandidateDialog({
               control={
                 <Switch
                   checked={!!form.open_to_other_roles}
+                  disabled={!canRevokeOpenProfile}
                   onChange={(e) => setForm((f) => ({ ...f, open_to_other_roles: e.target.checked }))}
                 />
               }
-              label="Open Profile"
+              label={isFreelance ? "Public" : "Open Profile"}
             />
             <Typography variant="caption" color="text.secondary">
-              Visible to every recruiter in every organization, not just this tenant/team — the same
-              cross-tenant sharing a candidate can opt into themselves via the public application form.
+              {canRevokeOpenProfile
+                ? isFreelance
+                  ? "Private by default: only you can see this candidate. Turning this on makes them Public, visible to every recruiter on the platform, the same opt-in a candidate can make themselves on the public application form."
+                  : "Visible to every recruiter in every organization on the platform, not just yours, the same cross-tenant sharing a candidate can opt into themselves via the public application form."
+                : "This candidate opted in to being visible platform-wide. Only a superadmin can turn this back off, since it isn't a recruiter's choice to revoke."}
             </Typography>
           </Stack>
         </Stack>
