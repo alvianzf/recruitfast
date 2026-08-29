@@ -15,6 +15,7 @@ class CandidateOut(BaseModel):
     source: str | None
     current_position: str | None
     total_years_experience: str | None
+    location: str | None
     blacklisted: bool
     open_to_other_roles: bool
     linkedin_url: str | None
@@ -29,6 +30,7 @@ class CandidateUpdate(BaseModel):
     source: str | None = None
     current_position: str | None = None
     total_years_experience: str | None = None
+    location: str | None = None
     linkedin_url: str | None = None
     github_url: str | None = None
     portfolio_url: str | None = None
@@ -48,6 +50,7 @@ class CurrentDocumentOut(BaseModel):
 
 
 class PlacementSummary(BaseModel):
+    id: uuid.UUID
     job_id: uuid.UUID
     job_title: str
     stage_name: str
@@ -90,6 +93,7 @@ class CVCommitItem(BaseModel):
     phone: str | None = None
     current_position: str | None = None
     total_years_experience: str | None = None
+    location: str | None = None
     parsed_fields: dict[str, Any] | None = None
     parse_confidence: dict[str, Any] | None = None
 
@@ -101,3 +105,34 @@ class CVCommitRequest(BaseModel):
 class CVCommitResponse(BaseModel):
     created: list[CandidateOut]
     skipped_count: int
+
+
+class SkillFilterIn(BaseModel):
+    name: str
+    min_years: int | None = None
+    used_since_year: int | None = None
+    # How min_years and used_since_year combine for THIS skill when both
+    # are set. Across multiple skills, CandidateSearchRequest.skill_match
+    # is the separate top-level knob.
+    condition_match: Literal["all", "any"] = "all"
+
+
+class CandidateSearchRequest(BaseModel):
+    skills: list[SkillFilterIn]
+    skill_match: Literal["all", "any"] = "all"
+
+
+class MatchedSkillOut(BaseModel):
+    name: str
+    years_of_experience: str | None
+    last_used: str | None
+
+
+class CandidateSearchResult(BaseModel):
+    id: uuid.UUID
+    full_name: str
+    current_position: str | None
+    total_years_experience: str | None
+    location: str | None
+    scope: Literal["org", "public"]
+    matched_skills: list[MatchedSkillOut]
