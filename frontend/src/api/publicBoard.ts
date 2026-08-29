@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { api } from "./client";
+import type { JobType, Seniority, WorkMode } from "./jobs";
 
 export interface PublicJobSummary {
   id: string;
@@ -8,16 +9,33 @@ export interface PublicJobSummary {
   title: string;
   overview: string | null;
   applicant_count: number;
+  work_mode: WorkMode | null;
+  location: string | null;
+  seniority: Seniority | null;
+  job_type: JobType | null;
+  salary_min: number | null;
+  salary_max: number | null;
+  salary_currency: string | null;
+  created_at: string;
+  org_name: string | null;
+  org_logo_url: string | null;
+  board_path: string | null;
 }
 
 export interface PublicBoardResponse {
   org_name: string;
+  org_logo_url: string | null;
+  org_description: string | null;
+  org_office_location: string | null;
+  org_contact_email: string | null;
   jobs: PublicJobSummary[];
 }
 
 export interface PublicScreeningQuestion {
   id: string;
   question_text: string;
+  question_type: "text" | "number" | "boolean";
+  required: boolean;
   position: number;
 }
 
@@ -28,7 +46,18 @@ export interface PublicJobDetail {
   description: string | null;
   is_technical_role: boolean;
   applicant_count: number;
+  work_mode: WorkMode | null;
+  location: string | null;
+  seniority: Seniority | null;
+  job_type: JobType | null;
+  salary_min: number | null;
+  salary_max: number | null;
+  salary_currency: string | null;
   screening_questions: PublicScreeningQuestion[];
+  posted_by_name: string;
+  org_name: string | null;
+  org_logo_url: string | null;
+  created_at: string;
   board_path: string;
 }
 
@@ -41,10 +70,10 @@ export function useOrgBoard(slug: string) {
   });
 }
 
-export function useFreelanceBoard() {
+export function useAllJobsBoard() {
   return useQuery({
-    queryKey: ["public-board", "freelance"],
-    queryFn: async () => (await api.get<PublicBoardResponse>("/public/boards/freelance")).data,
+    queryKey: ["public-board", "all"],
+    queryFn: async () => (await api.get<PublicBoardResponse>("/public/boards/all")).data,
   });
 }
 
