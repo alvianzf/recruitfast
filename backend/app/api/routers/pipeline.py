@@ -6,7 +6,8 @@ from sqlalchemy.orm import Session
 from app.api.deps import CurrentUser, get_current_user, get_db
 from app.models.blacklist import EmailBlacklistEntry
 from app.models.candidate import Candidate
-from app.models.job import Job
+from app.models.job import Job, JobStatus
+from app.models.job_application import JobApplication
 from app.models.pipeline import JobStage
 from app.models.placement import PipelinePlacement, PlacementStatus, StageHistory
 from app.schemas.candidate import CandidateOut
@@ -19,6 +20,7 @@ from app.schemas.pipeline import (
     JobStageReorder,
     PlacementCreate,
     PlacementMove,
+    PlacementOfferDetails,
     PlacementOut,
     PlacementStatusUpdate,
 )
@@ -142,6 +144,9 @@ def _to_placement_out(placement: PipelinePlacement, candidate: Candidate) -> Pla
         current_stage_id=placement.current_stage_id,
         status=placement.status.value,
         status_reason=placement.status_reason,
+        starting_date=placement.starting_date,
+        offer_rate=placement.offer_rate,
+        offer_rate_currency=placement.offer_rate_currency,
         candidate=CandidateSummary.model_validate(candidate),
     )
 
@@ -153,10 +158,15 @@ def list_placements(
     current_user: CurrentUser = Depends(get_current_user),
 ) -> list[PlacementOut]:
     _get_job_or_404(db, job_id, current_user.tenant_id)
+    # A soft-deleted candidate (candidates.py's delete_candidate) never
+    # removes their pipeline_placements rows — deleting is meant to be
+    # cheap and reversible-in-the-DB, not a cascade. Without this filter
+    # their card stayed stuck on the Kanban/Table board forever (bug
+    # found 2026-08-27) since nothing else marks the placement itself.
     rows = (
         db.query(PipelinePlacement, Candidate)
         .join(Candidate, Candidate.id == PipelinePlacement.candidate_id)
-        .filter(PipelinePlacement.job_id == job_id)
+        .filter(PipelinePlacement.job_id == job_id, Candidate.deleted_at.is_(None))
         .all()
     )
     return [_to_placement_out(p, c) for p, c in rows]
@@ -211,6 +221,32 @@ def attach_candidate(
     return _to_placement_out(placement, candidate)
 
 
+@router.delete("/placements/{placement_id}", status_code=status.HTTP_204_NO_CONTENT)
+def detach_candidate(
+    placement_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> None:
+    # A genuine undo (wrong candidate attached to the wrong job), not the
+    # same thing as rejecting/withdrawing a candidate — those keep the
+    # placement and its stage_history for the record (see
+    # update_placement_status below); this removes it entirely, so the
+    # candidate can be attached again fresh later without stale history.
+    placement = (
+        db.query(PipelinePlacement)
+        .filter(PipelinePlacement.id == placement_id, PipelinePlacement.tenant_id == uuid.UUID(current_user.tenant_id))
+        .first()
+    )
+    if placement is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Placement not found")
+    db.query(StageHistory).filter(StageHistory.placement_id == placement.id).delete()
+    # A public application that became eligible links here (job_applications.
+    # placement_id) — clear the link rather than deleting the application
+    # itself, so the historical "they applied" record survives a detach.
+    db.query(JobApplication).filter(JobApplication.placement_id == placement.id).update({"placement_id": None})
+    db.delete(placement)
+
+
 def _is_admin_override(db: Session, job: Job, current_user: CurrentUser) -> bool:
     return current_user.role == "org_admin" and str(job.owner_recruiter_id) != current_user.user_id
 
@@ -253,6 +289,51 @@ def move_placement(
     if target.is_terminal_reject and placement.status == PlacementStatus.active:
         placement.status = PlacementStatus.rejected
 
+    # Landing in an Offer-flagged stage counts toward headcount — once
+    # enough active placements are sitting in a terminal-success stage,
+    # the job auto-closes. Recruiters can still reopen it via PATCH.
+    if target.is_terminal_success and job.status == JobStatus.open:
+        db.flush()  # session is autoflush=False — the stage move above must hit the DB before this count
+        offer_count = (
+            db.query(PipelinePlacement)
+            .join(JobStage, JobStage.id == PipelinePlacement.current_stage_id)
+            .filter(
+                PipelinePlacement.job_id == job.id,
+                PipelinePlacement.status == PlacementStatus.active,
+                JobStage.is_terminal_success.is_(True),
+            )
+            .count()
+        )
+        if offer_count >= job.headcount:
+            job.status = JobStatus.won
+
+    candidate = db.query(Candidate).filter(Candidate.id == placement.candidate_id).first()
+    return _to_placement_out(placement, candidate)
+
+
+@router.patch("/placements/{placement_id}/offer-details", response_model=PlacementOut)
+def update_placement_offer_details(
+    placement_id: uuid.UUID,
+    payload: PlacementOfferDetails,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> PlacementOut:
+    # Captured after a placement fills a job — see move_placement's
+    # headcount auto-close and jobs.py's manual "mark Won" path, both of
+    # which the frontend follows with a prompt for this. Not restricted
+    # to won jobs/offer-stage placements server-side (a recruiter
+    # correcting a figure later shouldn't be blocked by job state).
+    placement = (
+        db.query(PipelinePlacement)
+        .filter(PipelinePlacement.id == placement_id, PipelinePlacement.tenant_id == uuid.UUID(current_user.tenant_id))
+        .first()
+    )
+    if placement is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Placement not found")
+
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(placement, field, value)
+
     candidate = db.query(Candidate).filter(Candidate.id == placement.candidate_id).first()
     return _to_placement_out(placement, candidate)
 
@@ -264,8 +345,8 @@ def update_placement_status(
     db: Session = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
 ) -> PlacementOut:
-    if payload.status not in ("rejected", "withdrawn"):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="status must be 'rejected' or 'withdrawn'")
+    if payload.status not in ("rejected", "withdrawn", "active"):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="status must be 'rejected', 'withdrawn', or 'active'")
 
     placement = (
         db.query(PipelinePlacement)
@@ -275,12 +356,39 @@ def update_placement_status(
     if placement is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Placement not found")
 
+    if payload.status == "active":
+        # "Re-add" a rejected/withdrawn candidate — restarts them at the
+        # pipeline's first stage rather than resuming wherever they were
+        # (simplest, most predictable default; see docs/03). Kanban/Table
+        # only ever show active placements (2026-08-27 fix — see below),
+        # so this is the only way back onto the board once removed.
+        placement.status = PlacementStatus.active
+        placement.status_reason = None
+        first_stage = db.query(JobStage).filter(JobStage.job_id == placement.job_id).order_by(JobStage.position).first()
+        if first_stage and placement.current_stage_id != first_stage.id:
+            db.add(
+                StageHistory(
+                    tenant_id=placement.tenant_id,
+                    placement_id=placement.id,
+                    from_stage_id=placement.current_stage_id,
+                    to_stage_id=first_stage.id,
+                    stage_label_snapshot=first_stage.name,
+                    moved_by=uuid.UUID(current_user.user_id),
+                )
+            )
+            placement.current_stage_id = first_stage.id
+        candidate = db.query(Candidate).filter(Candidate.id == placement.candidate_id).first()
+        return _to_placement_out(placement, candidate)
+
     placement.status = PlacementStatus(payload.status)
     placement.status_reason = payload.reason
 
     # Both terminal statuses land the card in the job's Reject-flagged
     # column for board consistency — status still distinguishes why
-    # (recruiter-rejected vs candidate-withdrew). See docs/03.
+    # (recruiter-rejected vs candidate-withdrew). See docs/03. Kanban/Table
+    # filter these out entirely now (2026-08-27) — which stage they're
+    # parked in only matters for the stage-history record, not what's
+    # visibly shown.
     reject_stage = db.query(JobStage).filter(JobStage.job_id == placement.job_id, JobStage.is_terminal_reject.is_(True)).first()
     if reject_stage and placement.current_stage_id != reject_stage.id:
         db.add(
