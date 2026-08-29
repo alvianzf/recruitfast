@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Chip, CircularProgress, Divider, Drawer, IconButton, Stack, Tab, Tabs, Typography } from "@mui/material";
+import { Chip, CircularProgress, Divider, Drawer, IconButton, Stack, Tab, Tabs, Typography, useTheme } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
@@ -7,6 +7,8 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import { useCandidate } from "../api/candidates";
 import ParsedDataTable from "./ParsedDataTable";
 import CvPreviewPanel from "./CvPreviewPanel";
+import NotesPanel from "./NotesPanel";
+import { getStatusColor } from "../theme";
 
 function InfoRow({ label, value }: { label: string; value: string | null | undefined }) {
   if (!value) return null;
@@ -20,12 +22,6 @@ function InfoRow({ label, value }: { label: string; value: string | null | undef
   );
 }
 
-const STATUS_COLOR: Record<string, "success" | "error" | "default"> = {
-  active: "success",
-  rejected: "error",
-  withdrawn: "default",
-};
-
 export default function CandidateQuickView({
   candidateIds,
   currentId,
@@ -37,9 +33,10 @@ export default function CandidateQuickView({
   onNavigate: (id: string) => void;
   onClose: () => void;
 }) {
+  const theme = useTheme();
   const open = currentId !== null;
   const { data: candidate, isLoading } = useCandidate(currentId ?? "");
-  const [tab, setTab] = useState<"details" | "cv">("details");
+  const [tab, setTab] = useState<"details" | "cv" | "notes">("details");
 
   const index = currentId ? candidateIds.indexOf(currentId) : -1;
   const hasPrev = index > 0;
@@ -98,7 +95,10 @@ export default function CandidateQuickView({
                   key={p.job_id}
                   size="small"
                   label={`${p.job_title} · ${p.stage_name}`}
-                  color={STATUS_COLOR[p.status] ?? "default"}
+                  sx={{
+                    borderColor: getStatusColor(p.status, theme.palette.mode),
+                    color: getStatusColor(p.status, theme.palette.mode),
+                  }}
                   variant="outlined"
                 />
               ))}
@@ -109,6 +109,7 @@ export default function CandidateQuickView({
         <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ px: 2, mt: 1 }}>
           <Tab value="details" label="Details" />
           <Tab value="cv" label="CV" />
+          <Tab value="notes" label="Notes" />
         </Tabs>
         <Divider />
 
@@ -121,6 +122,7 @@ export default function CandidateQuickView({
             <Stack spacing={1}>
               <Typography sx={{ fontWeight: 700 }}>Basic Information</Typography>
               <InfoRow label="Position" value={candidate.current_position} />
+              <InfoRow label="Location" value={candidate.location} />
               <InfoRow label="Email" value={candidate.email} />
               <InfoRow label="Phone" value={candidate.phone} />
               <InfoRow label="Source" value={candidate.source} />
@@ -135,9 +137,13 @@ export default function CandidateQuickView({
               </Stack>
             )}
           </Stack>
-        ) : (
+        ) : tab === "cv" ? (
           <Stack sx={{ p: 2.5, overflowY: "auto", flex: 1 }}>
             <CvPreviewPanel candidateId={currentId} />
+          </Stack>
+        ) : (
+          <Stack sx={{ p: 2.5, overflowY: "auto", flex: 1 }}>
+            <NotesPanel candidateId={candidate.id} variant="plain" />
           </Stack>
         )}
       </Stack>
