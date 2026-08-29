@@ -19,9 +19,16 @@ from app.services.dedup import compute_fingerprint
 
 router = APIRouter(prefix="/candidates/import", tags=["candidates"])
 
+# MAX_ROWS already bounds parsed row count, but that check only runs after
+# the whole file is read into memory — an authenticated user could still
+# point this at an arbitrarily large file to exhaust server memory before
+# that check ever fires. Bound the read itself too, same pattern already
+# used for CV uploads (see docs/11-security-review.md finding 2).
+MAX_IMPORT_FILE_SIZE_BYTES = 20 * 1024 * 1024
+
 
 @router.get("/template.csv")
-def download_template_csv() -> Response:
+def download_template_csv(current_user: CurrentUser = Depends(get_current_user)) -> Response:
     content = bulk_import.generate_template_csv()
     return Response(
         content=content,
@@ -31,7 +38,7 @@ def download_template_csv() -> Response:
 
 
 @router.get("/template.xlsx")
-def download_template_xlsx() -> Response:
+def download_template_xlsx(current_user: CurrentUser = Depends(get_current_user)) -> Response:
     content = bulk_import.generate_template_xlsx()
     return Response(
         content=content,
@@ -51,7 +58,9 @@ async def preview_import(
     if ext not in (".csv", ".xlsx"):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Only .csv and .xlsx are supported")
 
-    content = await file.read()
+    content = await file.read(MAX_IMPORT_FILE_SIZE_BYTES + 1)
+    if len(content) > MAX_IMPORT_FILE_SIZE_BYTES:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="File must be 20MB or smaller.")
     temp_id, temp_path = storage.save_temp(content, filename)
 
     try:
@@ -73,7 +82,11 @@ async def preview_import(
             )
             existing = (
                 db.query(Candidate)
-                .filter(Candidate.tenant_id == current_user.tenant_id, Candidate.dedup_fingerprint == fingerprint)
+                .filter(
+                    Candidate.tenant_id == current_user.tenant_id,
+                    Candidate.dedup_fingerprint == fingerprint,
+                    Candidate.deleted_at.is_(None),
+                )
                 .first()
             )
             if existing:
