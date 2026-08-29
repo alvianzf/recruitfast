@@ -2,10 +2,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "./client";
 
+export type ScreeningQuestionType = "text" | "number" | "boolean";
+
 export interface ScreeningQuestion {
   id: string;
   question_text: string;
-  expected_answer: string;
+  question_type: ScreeningQuestionType;
+  expected_answer: string | null;
+  min_value: number | null;
+  required: boolean;
   position: number;
 }
 
@@ -13,7 +18,16 @@ export interface Application {
   id: string;
   candidate: { id: string; full_name: string; email: string | null; phone: string | null; current_position: string | null };
   cover_letter: string | null;
-  answers: { question_id: string; question_text: string; expected_answer: string; answer: string; matched: boolean }[];
+  answers: {
+    question_id: string;
+    question_text: string;
+    question_type: ScreeningQuestionType;
+    required: boolean;
+    expected_answer: string | null;
+    min_value: number | null;
+    answer: string;
+    matched: boolean;
+  }[];
   eligible: boolean;
   placement_id: string | null;
   created_at: string;
@@ -27,10 +41,18 @@ export function useScreeningQuestions(jobId: string) {
   });
 }
 
+export interface ScreeningQuestionInput {
+  question_text: string;
+  question_type: ScreeningQuestionType;
+  expected_answer?: string | null;
+  min_value?: number | null;
+  required: boolean;
+}
+
 export function useAddScreeningQuestion(jobId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { question_text: string; expected_answer: string }) =>
+    mutationFn: async (input: ScreeningQuestionInput) =>
       (await api.post<ScreeningQuestion>(`/jobs/${jobId}/screening-questions`, input)).data,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["screening-questions", jobId] }),
   });
@@ -70,6 +92,7 @@ export interface OpenProfile {
   full_name: string;
   current_position: string | null;
   total_years_experience: string | null;
+  location: string | null;
 }
 
 export function useOpenProfiles() {
