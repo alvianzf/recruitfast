@@ -15,6 +15,17 @@ class Settings(BaseSettings):
     # though they resolve to the same machine — both are allowed so the
     # dev server works regardless of which host the frontend binds to.
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    # Used to build absolute URLs for uploaded images (org logos, user
+    # avatars) returned by POST /uploads/image — the frontend and backend
+    # run on different origins, so a relative /media/... path would
+    # resolve against the frontend's own origin instead of the API's.
+    public_base_url: str = "http://127.0.0.1:8000"
+    # The frontend SPA's own public origin — where job board/apply pages
+    # actually live (a different origin from public_base_url above in
+    # dev). Used to build absolute URLs in sitemap.xml and the social-share
+    # preview page, since both need a real, crawlable URL, not a relative
+    # path resolved against whichever origin served the request.
+    frontend_base_url: str = "http://localhost:5173"
 
     # Optional LLM-based CV parsing layer (see app/services/llm_cv_parser.py
     # and docs/04-cv-parser.md). None/empty disables it entirely and the
