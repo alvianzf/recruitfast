@@ -1,4 +1,5 @@
 import uuid
+from datetime import date
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -42,7 +43,16 @@ class PlacementOut(BaseModel):
     current_stage_id: uuid.UUID
     status: str
     status_reason: str | None
+    starting_date: date | None
+    offer_rate: int | None
+    offer_rate_currency: str | None
     candidate: CandidateSummary
+
+
+class PlacementOfferDetails(BaseModel):
+    starting_date: date | None = None
+    offer_rate: int | None = Field(default=None, ge=0)
+    offer_rate_currency: str | None = None
 
 
 class PlacementCreate(BaseModel):
@@ -54,7 +64,7 @@ class PlacementMove(BaseModel):
 
 
 class PlacementStatusUpdate(BaseModel):
-    status: str  # "rejected" | "withdrawn"
+    status: str  # "rejected" | "withdrawn" | "active"
     reason: str | None = None
 
 
