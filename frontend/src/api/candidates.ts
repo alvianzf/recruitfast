@@ -10,6 +10,7 @@ export interface Candidate {
   source: string | null;
   current_position: string | null;
   total_years_experience: string | null;
+  location: string | null;
   blacklisted: boolean;
   open_to_other_roles: boolean;
   linkedin_url: string | null;
@@ -24,6 +25,7 @@ export interface CandidateUpdateInput {
   source?: string | null;
   current_position?: string | null;
   total_years_experience?: string | null;
+  location?: string | null;
   linkedin_url?: string | null;
   github_url?: string | null;
   portfolio_url?: string | null;
@@ -55,11 +57,13 @@ export interface CVCommitItem {
   phone?: string | null;
   current_position?: string | null;
   total_years_experience?: string | null;
+  location?: string | null;
   parsed_fields?: Record<string, unknown> | null;
   parse_confidence?: Record<string, unknown> | null;
 }
 
 export interface PlacementSummary {
+  id: string;
   job_id: string;
   job_title: string;
   stage_name: string;
