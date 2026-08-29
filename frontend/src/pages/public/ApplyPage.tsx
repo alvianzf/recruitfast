@@ -1,15 +1,19 @@
 import { useRef, useState } from "react";
-import { useParams, Link as RouterLink } from "react-router-dom";
+import { useParams, useNavigate, Link as RouterLink } from "react-router-dom";
+import { motion } from "framer-motion";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, Controller } from "react-hook-form";
 import { z } from "zod";
 import {
   Alert,
+  Avatar,
   Box,
   Button,
   Checkbox,
+  Chip,
   CircularProgress,
   FormControlLabel,
+  MenuItem,
   Paper,
   Stack,
   TextField,
@@ -17,9 +21,22 @@ import {
 } from "@mui/material";
 import CloudUploadOutlinedIcon from "@mui/icons-material/CloudUploadOutlined";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
+import BusinessOutlinedIcon from "@mui/icons-material/BusinessOutlined";
+import PersonOutlinedIcon from "@mui/icons-material/PersonOutlined";
+import PlaceOutlinedIcon from "@mui/icons-material/PlaceOutlined";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import PaidOutlinedIcon from "@mui/icons-material/PaidOutlined";
 
 import { useApplyToJob, usePublicJob } from "../../api/publicBoard";
+import { JOB_TYPE_LABEL, SENIORITY_LABEL, WORK_MODE_LABEL } from "../../api/jobs";
 import Logo from "../../components/Logo";
+import RichText from "../../components/RichText";
+import { formatRelativeTime } from "../../utils/relativeTime";
+import { formatSalary } from "../../utils/formatSalary";
+import { useDocumentMeta } from "../../hooks/useDocumentMeta";
+import { PUBLIC_BLUE_BACKGROUND } from "./publicStyles";
+import PublicNav from "./PublicNav";
+import PublicFooter from "./PublicFooter";
 
 const schema = z.object({
   full_name: z.string().min(1, "Required"),
@@ -38,8 +55,18 @@ type FormValues = z.infer<typeof schema>;
 
 export default function ApplyPage() {
   const { jobSlug = "" } = useParams();
+  const navigate = useNavigate();
   const { data: job, isLoading, isError } = usePublicJob(jobSlug);
   const apply = useApplyToJob(jobSlug);
+  useDocumentMeta(
+    job ? `${job.title}${job.org_name ? ` at ${job.org_name}` : ""}: FastRecruit` : "Apply: FastRecruit",
+    job
+      ? [job.seniority, job.location, formatSalary(job.salary_min, job.salary_max, job.salary_currency), job.overview]
+          .filter(Boolean)
+          .join(" · ")
+          .slice(0, 300)
+      : undefined,
+  );
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [submitted, setSubmitted] = useState<{ eligible: boolean; message: string } | null>(null);
@@ -67,63 +94,149 @@ export default function ApplyPage() {
 
   if (isLoading) {
     return (
-      <Stack sx={{ alignItems: "center", py: 10 }}>
-        <CircularProgress />
-      </Stack>
+      <Box sx={{ minHeight: "100vh", background: PUBLIC_BLUE_BACKGROUND }}>
+        <PublicNav />
+        <Stack sx={{ alignItems: "center", py: 10 }}>
+          <CircularProgress sx={{ color: "#ffffff" }} />
+        </Stack>
+      </Box>
     );
   }
 
   if (isError || !job) {
     return (
-      <Box sx={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", px: 2 }}>
-        <Paper sx={{ p: 4, textAlign: "center" }}>
-          <Typography color="text.secondary">This job isn't accepting applications right now.</Typography>
-        </Paper>
+      <Box sx={{ minHeight: "100vh", background: PUBLIC_BLUE_BACKGROUND, display: "flex", flexDirection: "column" }}>
+        <PublicNav />
+        <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", px: 2 }}>
+          <Paper sx={{ p: 4, textAlign: "center" }}>
+            <Typography color="text.secondary">This job isn't accepting applications right now.</Typography>
+          </Paper>
+        </Box>
+        <PublicFooter />
       </Box>
     );
   }
 
   if (submitted) {
     return (
-      <Box sx={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", px: 2 }}>
-        <Paper sx={{ p: 5, width: 480, maxWidth: "100%", textAlign: "center" }}>
-          <Stack spacing={2} sx={{ alignItems: "center" }}>
-            <Logo compact />
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>
-              Application received!
-            </Typography>
-            <Typography color="text.secondary">
-              Thanks for applying to {job.title}. The team will be in touch if there's a fit.
-            </Typography>
-            <Button component={RouterLink} to={job.board_path} variant="outlined" sx={{ mt: 1 }}>
-              Browse other jobs
-            </Button>
-          </Stack>
-        </Paper>
+      <Box sx={{ minHeight: "100vh", background: PUBLIC_BLUE_BACKGROUND, display: "flex", flexDirection: "column" }}>
+        <PublicNav />
+        <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", px: 2 }}>
+          <motion.div
+            initial={{ opacity: 0, y: 16, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+          >
+            <Paper sx={{ p: 5, width: 480, maxWidth: "100%", textAlign: "center" }}>
+              <Stack spacing={2} sx={{ alignItems: "center" }}>
+                <Logo compact />
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                  Application received!
+                </Typography>
+                <Typography color="text.secondary">
+                  Thanks for applying to {job.title}. The team will be in touch if there's a fit.
+                </Typography>
+                <Button component={RouterLink} to={job.board_path} variant="outlined" sx={{ mt: 1 }}>
+                  Browse other jobs
+                </Button>
+              </Stack>
+            </Paper>
+          </motion.div>
+        </Box>
+        <PublicFooter />
       </Box>
     );
   }
 
   return (
-    <Box sx={{ minHeight: "100vh", py: { xs: 4, md: 8 }, px: 2 }}>
-      <Stack spacing={3} sx={{ maxWidth: 620, mx: "auto" }}>
-        <RouterLink to="/" style={{ textDecoration: "none", alignSelf: "center" }}>
-          <Logo compact />
-        </RouterLink>
+    <Box sx={{ minHeight: "100vh", background: PUBLIC_BLUE_BACKGROUND, display: "flex", flexDirection: "column" }}>
+      <PublicNav />
+      <Stack spacing={3} sx={{ maxWidth: 1320, mx: "auto", py: { xs: 4, md: 8 }, px: 2, flex: 1, width: "100%" }}>
+        <Button
+          onClick={() => navigate(-1)}
+          startIcon={<ArrowBackIcon fontSize="small" />}
+          size="small"
+          sx={{ alignSelf: "flex-start", color: "#ffffff" }}
+        >
+          Back
+        </Button>
 
-        <Paper sx={{ p: { xs: 3, md: 5 } }}>
-          <Stack spacing={3} component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
-            <Box>
-              <Typography variant="h5" sx={{ fontWeight: 800 }}>
-                {job.title}
-              </Typography>
-              {job.overview && (
-                <Typography color="text.secondary" sx={{ mt: 1 }}>
-                  {job.overview}
+        <Stack direction={{ xs: "column", md: "row" }} spacing={3} sx={{ alignItems: "flex-start" }}>
+          <Paper
+            sx={{
+              p: { xs: 3, md: 4 },
+              width: { xs: "100%", md: 420 },
+              flexShrink: 0,
+              position: { md: "sticky" },
+              top: { md: 24 },
+            }}
+          >
+            {job.org_name && (
+              <Stack
+                direction="row"
+                spacing={1}
+                component={job.board_path ? RouterLink : "div"}
+                to={job.board_path ?? undefined}
+                sx={{
+                  alignItems: "center",
+                  mb: 1,
+                  width: "fit-content",
+                  textDecoration: "none",
+                  color: "inherit",
+                  ...(job.board_path && { "&:hover": { textDecoration: "underline" } }),
+                }}
+              >
+                <Avatar src={job.org_logo_url ?? undefined} sx={{ width: 24, height: 24 }}>
+                  <BusinessOutlinedIcon sx={{ fontSize: 14 }} />
+                </Avatar>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {job.org_name}
                 </Typography>
-              )}
-            </Box>
+              </Stack>
+            )}
+            <Typography variant="h5" sx={{ fontWeight: 800 }}>
+              {job.title}
+            </Typography>
+            {(job.work_mode || job.location) && (
+              <Stack direction="row" spacing={0.5} sx={{ alignItems: "center", mt: 0.5 }}>
+                <PlaceOutlinedIcon sx={{ fontSize: 16 }} color="action" />
+                <Typography variant="body2" color="text.secondary">
+                  {[job.work_mode ? WORK_MODE_LABEL[job.work_mode] : null, job.location].filter(Boolean).join(" · ")}
+                </Typography>
+              </Stack>
+            )}
+            {(job.seniority || job.job_type) && (
+              <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap", gap: 1 }}>
+                {job.seniority && <Chip size="small" variant="outlined" label={SENIORITY_LABEL[job.seniority]} />}
+                {job.job_type && <Chip size="small" variant="outlined" label={JOB_TYPE_LABEL[job.job_type]} />}
+              </Stack>
+            )}
+            {formatSalary(job.salary_min, job.salary_max, job.salary_currency) && (
+              <Stack direction="row" spacing={0.5} sx={{ alignItems: "center", mt: 1 }}>
+                <PaidOutlinedIcon sx={{ fontSize: 16 }} color="action" />
+                <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
+                  {formatSalary(job.salary_min, job.salary_max, job.salary_currency)}
+                </Typography>
+              </Stack>
+            )}
+            <Stack direction="row" spacing={0.5} sx={{ alignItems: "center", mt: 1, flexWrap: "wrap" }}>
+              <PersonOutlinedIcon sx={{ fontSize: 16 }} color="action" />
+              <Typography variant="caption" color="text.secondary">
+                Posted by {job.posted_by_name} · {formatRelativeTime(job.created_at)}
+              </Typography>
+            </Stack>
+            {job.overview && (
+              <Typography color="text.secondary" sx={{ mt: 2 }}>
+                {job.overview}
+              </Typography>
+            )}
+            {job.description && (
+              <RichText html={job.description} sx={{ mt: 1.5, color: "text.secondary", fontSize: "0.875rem" }} />
+            )}
+          </Paper>
 
+          <Paper sx={{ p: { xs: 3, md: 5 }, flex: 1, width: "100%", minWidth: 0 }}>
+            <Stack spacing={3} component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
             {apply.isError && <Alert severity="error">Something went wrong submitting your application. Please try again.</Alert>}
 
             <Stack direction="row" spacing={2}>
@@ -225,7 +338,29 @@ export default function ApplyPage() {
                 key={q.id}
                 name={`answers.${q.id}`}
                 control={control}
-                render={({ field }) => <TextField label={q.question_text} fullWidth {...field} />}
+                render={({ field }) =>
+                  q.question_type === "boolean" ? (
+                    <TextField
+                      select
+                      label={q.required ? `${q.question_text} *` : q.question_text}
+                      fullWidth
+                      {...field}
+                    >
+                      <MenuItem value="">
+                        <em>Select…</em>
+                      </MenuItem>
+                      <MenuItem value="yes">Yes</MenuItem>
+                      <MenuItem value="no">No</MenuItem>
+                    </TextField>
+                  ) : (
+                    <TextField
+                      label={q.required ? `${q.question_text} *` : q.question_text}
+                      type={q.question_type === "number" ? "number" : "text"}
+                      fullWidth
+                      {...field}
+                    />
+                  )
+                }
               />
             ))}
 
@@ -242,6 +377,7 @@ export default function ApplyPage() {
 
             <Button
               variant="contained"
+              color="secondary"
               size="large"
               type="submit"
               disabled={!cvFile || isSubmitting}
@@ -249,9 +385,11 @@ export default function ApplyPage() {
             >
               {isSubmitting ? "Submitting…" : "Submit application"}
             </Button>
-          </Stack>
-        </Paper>
+            </Stack>
+          </Paper>
+        </Stack>
       </Stack>
+      <PublicFooter />
     </Box>
   );
 }
