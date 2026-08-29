@@ -2,7 +2,20 @@ import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Alert, Box, Button, Paper, Stack, TextField, Typography, Link as MuiLink } from "@mui/material";
+import {
+  Alert,
+  Box,
+  Button,
+  IconButton,
+  InputAdornment,
+  Paper,
+  Stack,
+  TextField,
+  Typography,
+  Link as MuiLink,
+} from "@mui/material";
+import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
+import VisibilityOffOutlinedIcon from "@mui/icons-material/VisibilityOffOutlined";
 import { Link as RouterLink, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { isAxiosError } from "axios";
 
@@ -21,6 +34,7 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const [serverError, setServerError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   const {
     register,
@@ -80,12 +94,28 @@ export default function Login() {
             />
             <TextField
               label="Password"
-              type="password"
+              type={showPassword ? "text" : "password"}
               autoComplete="current-password"
               fullWidth
               {...register("password")}
               error={!!errors.password}
               helperText={errors.password?.message}
+              slotProps={{
+                input: {
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        size="small"
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                        onClick={() => setShowPassword((v) => !v)}
+                        edge="end"
+                      >
+                        {showPassword ? <VisibilityOffOutlinedIcon fontSize="small" /> : <VisibilityOutlinedIcon fontSize="small" />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                },
+              }}
             />
             <Button variant="contained" size="large" type="submit" disabled={isSubmitting}>
               {isSubmitting ? "Signing in…" : "Sign in"}
