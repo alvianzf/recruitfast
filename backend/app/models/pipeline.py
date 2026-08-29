@@ -14,6 +14,7 @@ DEFAULT_STAGE_NAMES = [
     "First Cut",
     "User Interview",
     "Offer",
+    "Signed",
     "Reject",
 ]
 
