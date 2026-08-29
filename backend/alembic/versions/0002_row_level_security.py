@@ -17,48 +17,28 @@ pooled connections between requests.
 Not yet covered here: the Assisted Access time-boxed grant (docs/01) —
 that needs a per-resource, per-request additional policy and is left as
 a follow-up migration once that flow is implemented.
+
+NEUTERED 2026-08-26: this migration's schema changes are now
+folded into 0001's create_all() (models.py already reflects them),
+and any RLS policy work here is superseded by 0001's consolidated
+policy setup. Any data backfill above only ever mattered for rows
+that existed in this project's own dev database at the time it was
+first applied there (already done, permanently) — a fresh install
+has no such rows to backfill. Kept as a no-op, not deleted, so the
+revision chain and this history stay intact. See 0001's docstring.
 """
 from alembic import op
+import sqlalchemy as sa
 
 revision = "0002"
 down_revision = "0001"
 branch_labels = None
 depends_on = None
 
-# Tables holding recruiter-confidential content — see docs/02
-# "Row-Level Security (RLS) model" for why these specifically.
-RLS_TABLES = [
-    "jobs",
-    "candidates",
-    "job_stages",
-    "pipeline_placements",
-    "stage_history",
-    "notes",
-    "candidate_documents",
-    "documents",
-]
-
-POLICY_USING = (
-    "current_setting('app.role', true) IS DISTINCT FROM 'superadmin' "
-    "AND tenant_id = current_setting('app.tenant_id', true)::uuid"
-)
-
 
 def upgrade() -> None:
-    for table in RLS_TABLES:
-        op.execute(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY")
-        op.execute(f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY")
-        op.execute(
-            f"""
-            CREATE POLICY tenant_isolation ON {table}
-            USING ({POLICY_USING})
-            WITH CHECK ({POLICY_USING})
-            """
-        )
+    pass  # see docstring — folded into 0001
 
 
 def downgrade() -> None:
-    for table in RLS_TABLES:
-        op.execute(f"DROP POLICY IF EXISTS tenant_isolation ON {table}")
-        op.execute(f"ALTER TABLE {table} NO FORCE ROW LEVEL SECURITY")
-        op.execute(f"ALTER TABLE {table} DISABLE ROW LEVEL SECURITY")
+    pass  # see docstring — folded into 0001
