@@ -2,12 +2,32 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/icon-mark.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
     <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192x192.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>RecruitFast</title>
+    <title>FastRecruit</title>
+    <meta name="description" content="Fast, collaborative recruiting. Post a job or upload your CV once and get seen by every recruiter on the platform." />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="FastRecruit" />
+    <meta property="og:title" content="FastRecruit — Fast, collaborative recruiting" />
+    <meta property="og:description" content="Post a job or upload your CV once and get seen by every recruiter on the platform." />
+    <meta property="og:image" content="https://fastrecruit.alvianzf.id/og-share.png" />
+    <meta property="og:url" content="https://fastrecruit.alvianzf.id/" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="FastRecruit — Fast, collaborative recruiting" />
+    <meta name="twitter:description" content="Post a job or upload your CV once and get seen by every recruiter on the platform." />
+    <meta name="twitter:image" content="https://fastrecruit.alvianzf.id/og-share.png" />
+    <!--
+      This is a static fallback for the SPA shell (landing page, and any
+      route a crawler bot reaches directly, since there's no SSR — see
+      useDocumentMeta.ts). Individual job postings get their own dynamic
+      title/description/image from the backend's
+      GET /public/jobs/{slug}/share endpoint instead, wired at the nginx
+      layer for known crawler user agents on /apply/* — see docs/10.
+    -->
   </head>
   <body>
     <div id="root"></div>
