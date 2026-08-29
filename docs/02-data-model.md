@@ -17,6 +17,25 @@ migrations once implementation starts for exact constraints/indexes.
 - Soft-delete (`deleted_at nullable`) on user, job, candidate — hard
   deletes only via the GDPR erasure flow (P2). `tenants` has no
   `deleted_at`; deactivation there is `status = 'suspended'` instead.
+- **No DB-level `ON DELETE CASCADE` anywhere in the schema** — every FK
+  in every model/migration uses the plain default. Soft-deleting a
+  candidate does not touch their `pipeline_placements`,
+  `job_applications`, or `stage_history` rows at all; those rows are left
+  exactly as they were, still pointing at the (still-physically-present,
+  just `deleted_at`-flagged) candidate row. The only way a soft-deleted
+  candidate stays invisible is every read query explicitly filtering
+  `deleted_at IS NULL` — there is no automatic enforcement. **This bit us
+  once already (fixed 2026-08-27)**: `pipeline.py`'s `list_placements`
+  and `screening.py`'s `list_applications` both joined `Candidate` without
+  that filter, so a deleted candidate's card stayed stuck on the job's
+  Kanban/Table board indefinitely. The three duplicate-detection
+  fingerprint lookups (`candidates.py`, `bulk_import.py`,
+  `public_board.py`) had the same gap — a re-upload/re-application could
+  silently match and reuse a soft-deleted candidate's row. All were
+  patched to add the filter; there's no structural guard preventing a new
+  query from reintroducing the same class of bug, so any new
+  `db.query(Candidate)` (or join to it) needs `Candidate.deleted_at.is_(None)`
+  added by hand unless it deliberately wants to see deleted rows.
 
 ## Core tables
 
@@ -26,9 +45,15 @@ migrations once implementation starts for exact constraints/indexes.
 | id | uuid PK | |
 | type | enum(`org`, `freelance_org`) | exactly one row has type=`freelance_org` |
 | name | text | |
-| slug | text, unique, nullable | public job board URL segment (`/careers/{slug}`); null for the Freelance Org, which uses the fixed `/careers/public` route instead. Collision-resolved by appending 6 random lowercase alphanumeric chars. See [10-job-board-and-applications.md](10-job-board-and-applications.md). |
-| status | enum(`active`, `suspended`) | |
+| slug | text, unique, nullable | public job board URL segment (`/jobs/{slug}`); null for the Freelance Org, which uses the fixed `/jobs` route instead (the "All Jobs" aggregated board — see [10-job-board-and-applications.md](10-job-board-and-applications.md)). Collision-resolved by appending 6 random lowercase alphanumeric chars. |
+| status | enum(`active`, `suspended`) | `suspended` is schema-only — no UI/API path sets it yet, see [01-roles-permissions.md](01-roles-permissions.md) |
 | plan_id | uuid FK → `plans` | nullable until billing set up |
+| logo_url | text, nullable | org-admin-set; either a pasted hosted-image URL or an uploaded file served back from `/media` (see `POST /uploads/image` in [10-job-board-and-applications.md](10-job-board-and-applications.md#org-profile-org_admin-editable)); null for the Freelance Org |
+| description | text, nullable | shown on the org's public career page |
+| office_location | text, nullable | free text, shown on the org's public career page |
+| contact_email | text, nullable | shown on the org's public career page |
+| preferred_currency | text, default `"IDR"` | org-admin-set at `/app/org/profile`; the currency the dashboard's placement-value and opportunity totals are converted into. See [05-dashboards-metrics.md](05-dashboards-metrics.md). |
+| max_recruiter_seats | int, nullable, default `3` | added 2026-08-26. Superadmin-set cap on active **recruiter**-role users, mirroring the Organization /pricing tier's included seats. `null` = unlimited (the Custom tier, or any org a superadmin exempts). **org_admin seats are a separate, uncapped concept and are never counted against this** — an org can register more than one admin regardless of this value. Enforced in `org.py`'s `invite_recruiter` (`app/services/seats.py`'s `check_recruiter_seat_available`), settable via `PATCH /admin/organizations/{id}/seats` (superadmin-only). Always unused for the Freelance Org tenant. |
 
 ### `users`
 | column | type | notes |
@@ -39,6 +64,7 @@ migrations once implementation starts for exact constraints/indexes.
 | full_name | text | |
 | email | citext unique | |
 | password_hash | text | |
+| avatar_url | text, nullable | self-service, set via `PATCH /users/me`; either a pasted URL or an uploaded file served back from `/media`, same upload path as `tenants.logo_url`. See [00-overview.md](00-overview.md#account-and-profile). |
 | status | enum(`pending_approval`, `active`, `deactivated`) | freelance recruiters start `pending_approval` |
 | specialization_tags | text[] | set during onboarding |
 | team_id | uuid FK → `teams`, nullable | see `teams` below; not RLS-scoped, same as the rest of `users` |
@@ -57,21 +83,86 @@ jobs/candidates.
 | name | text | |
 | created_at, updated_at | | |
 
+### `clients` (Org-only, added 2026-08-26)
+An Org tenant's own customer — the company a job is being worked on
+behalf of. Same pattern as `teams`: an ordinary, tenant-isolated table
+(standard RLS policy), org_admin-only to create/edit, but readable by
+any recruiter in the tenant (needed for the job-form dropdown). Optional
+on a job — `jobs.client_id` is nullable, and always null for Freelance
+Org jobs (no client roster there). Per-client metrics (job count,
+placement count, revenue) are computed on read (`GET
+/clients/{id}/metrics`), not stored — same approach as the dashboard's
+existing placement-value rollups, see
+[05-dashboards-metrics.md](05-dashboards-metrics.md).
+
+| column | type | notes |
+|---|---|---|
+| id | uuid PK | |
+| tenant_id | uuid FK → tenants | RLS-scoped |
+| name | text | required |
+| email | text | required |
+| contact_person | text \| null | optional |
+| phone | text \| null | optional |
+| notes | text \| null | optional |
+| created_at, updated_at | | |
+
 ### `jobs`
 | column | type | notes |
 |---|---|---|
 | id | uuid PK | |
 | tenant_id | uuid FK | RLS-scoped |
-| owner_recruiter_id | uuid FK → users, nullable | null = "Unassigned Jobs" queue |
+| owner_recruiter_id | uuid FK → users, nullable | Changed 2026-08-26: an org_admin's created/assigned jobs **never** set this to the admin's own id — admins don't do recruiter work (see [01-roles-permissions.md](01-roles-permissions.md)). `null` here means the job is open (either to the whole org, or to one team — see `team_id`). A recruiter-created job is always self-owned regardless of what the client sends. `POST /jobs/{id}/assign` and `POST /jobs/{id}/claim` both enforce the target/claimer has role `recruiter`, not just "any user in the tenant". |
+| team_id | uuid FK → `teams`, nullable, added 2026-08-26 | A job assigned to a team (via `JobCreate.team_id` at creation, or `POST /jobs/{id}/assign` with `team_id` instead of `recruiter_id`) is claimable by any recruiter on that team, not the whole org. Mutually exclusive with `owner_recruiter_id` — assigning one clears the other. `null` + `owner_recruiter_id` `null` = open to every recruiter in the org. |
 | title | text | |
+| slug | text, unique | public apply-link identifier, `{slugify(title)}-{5 random chars}` — always randomized, not just on collision (unlike `tenants.slug`), so the link never looks guessable. See [10-job-board-and-applications.md](10-job-board-and-applications.md). |
 | overview | text | short summary shown in list views |
-| description | text (rich text / markdown) | |
+| description | text (sanitized HTML) | authored via a constrained Tiptap WYSIWYG editor (bold/italic/h3/bullet+ordered lists only — `RichTextEditor.tsx`); rendered through `DOMPurify.sanitize()` before display (`RichText.tsx`) since it's shown to unauthenticated public visitors on the job board/apply page. See [10-job-board-and-applications.md](10-job-board-and-applications.md). |
 | jd_file_id | uuid FK → `documents`, nullable | uploaded JD file |
 | custom_fields | jsonb | org-defined schema, validated app-side |
-| status | enum(`open`, `on_hold`, `won`, `lost`) | `won`/`lost` — sales-deal framing (closed with a hire vs. fell through), not generic "filled/cancelled". See [03-pipelines-and-boards.md](03-pipelines-and-boards.md). |
+| headcount | int default 1 | number of hires this job needs; the job auto-closes to `won` once this many active placements reach the terminal-success (`Signed`) stage. See [03-pipelines-and-boards.md](03-pipelines-and-boards.md). |
+| status | enum(`open`, `on_hold`, `won`, `lost`) | `won`/`lost` — sales-deal framing (closed with a hire vs. fell through), not generic "filled/cancelled". `won` is also set automatically by the headcount auto-close. See [03-pipelines-and-boards.md](03-pipelines-and-boards.md). |
 | visibility | enum(`public`, `unlisted`) default `public` | `unlisted` jobs don't appear in board listings but are directly reachable by link; both still require `status = 'open'` to be publicly visible. See [10-job-board-and-applications.md](10-job-board-and-applications.md). |
 | is_technical_role | bool default false | gates whether the public application form defaults to asking for a GitHub URL |
+| work_mode | enum(`remote`, `onsite`, `hybrid`), nullable | null = not specified; drives a public-board filter |
+| location | text, nullable | free-text city/region, most meaningful for onsite/hybrid but not restricted to those |
+| seniority | enum(`entry`, `mid`, `senior`, `lead`, `executive`), nullable | null = not specified; drives a public-board filter |
+| job_type | enum(`full_time`, `part_time`, `contract`, `internship`, `temporary`), nullable | null = not specified; drives a public-board filter |
+| salary_min | int, nullable | optional; `salary_max` null + this set = a fixed figure, not a range. **Bug fixed 2026-08-27:** the New Job form's own client-side validation was silently blocking submission whenever this was left blank — `react-hook-form`'s `valueAsNumber: true` maps an empty number input to `NaN` (the native DOM `input.valueAsNumber` behavior), not `undefined`, and Zod's `z.number()` rejects `NaN` outright, failing the whole form's validity with no visible error tying it to this field. The backend schema (`JobCreate.salary_min: int \| None`) was never the problem — only `NewJobDialog.tsx`'s registration was, fixed by mapping an empty string to `undefined` explicitly (`setValueAs`) instead of relying on `valueAsNumber`. `EditJobDialog.tsx` already did the empty-to-`null` conversion explicitly and was never affected. |
+| salary_max | int, nullable | optional; both `salary_min`/`salary_max` set = a range. Neither set = "not disclosed" — no separate type enum, presence of `salary_max` (with `salary_min`) is the signal |
+| salary_currency | text, nullable | free-text currency label (e.g. "USD", "Rp") shown alongside the figures |
+| salary_confidential | bool default false | when true, salary fields stay visible internally (recruiter/org_admin — shown with a lock icon/tooltip) but are stripped server-side from every `/public/*` response, never just hidden client-side. See [10-job-board-and-applications.md](10-job-board-and-applications.md). |
 | pipeline_template_id | uuid FK → `pipeline_templates` | template it was cloned from, for reference only |
+| client_id | uuid FK → `clients`, nullable | Org-only, optional. Always null for Freelance Org jobs. Assigning it does an explicit tenant-scoped lookup server-side (`jobs.py`'s `_resolve_client_id`) rather than trusting the FK alone — Postgres FK validation checks the referenced row's existence, not the querying role's RLS visibility of it, so without that check a cross-tenant `client_id` would silently satisfy the FK. See [11-security-review.md](11-security-review.md). |
+| unique_visitor_count | int, **computed, not a real column** | a SQLAlchemy `column_property` (`app/models/job.py`): a correlated subquery counting `job_views` rows for this job, folded into the normal `SELECT` (no N+1 per row when listing many jobs). Exposed on `JobOut` and shown as a "Views" column on the internal Jobs table. See `job_views` below and [05-dashboards-metrics.md](05-dashboards-metrics.md). |
+| client_name | text, **computed, not a real column** | same `column_property` pattern — a correlated subquery pulling `clients.name` for `client_id`, so listing jobs never N+1s to show which client each belongs to. |
+| team_name | text, **computed, not a real column** (missing from this table until flagged as drift 2026-08-28) | same `column_property` pattern — a correlated subquery pulling `teams.name` for `team_id`. Shown wherever a job's assigned team is displayed (`JobAssignmentControl.tsx`); same N+1-avoidance rationale as `client_name`. |
+| applicant_count | int, **computed, not a real column**, added 2026-08-27 | same `column_property` pattern — a correlated subquery, shown as an "Applicants" column on the internal Jobs table. **Fixed 2026-08-27** (same day, different bug): originally counted only `job_applications` rows, so a candidate attached to the job's pipeline any other way — the "Attach to job" menu action, Find Candidates, Open Profiles, a CV-upload's own attach step — never moved the number, and deleting a candidate who *had* only applied (never placed) didn't decrement it either, since `job_applications` isn't touched by candidate soft-delete. Now counts **distinct candidates linked by either `job_applications` OR `pipeline_placements`** (a `UNION`, not `UNION ALL`, so a candidate who did both — applied, then got marked eligible, which creates the placement — is counted once), both halves filtered to `candidates.deleted_at IS NULL`. **This is now a genuinely different metric from the *public* job board's `applicant_count`** (`PublicJobSummary`/`PublicJobDetail`, via `public_board.py`'s `_applicant_count`, unchanged, still `job_applications`-only) — deliberately: the public board's count is candidate-facing social proof ("N people applied") and showing internal recruiter-sourcing activity there would be misleading, so it stays scoped to genuine public applications. The internal Jobs table's count answers a different question ("how many candidates are in this job's pipeline, however they got there") and needed the broader definition. |
+
+### `job_views`
+One row per (job, unique visitor); powers `jobs.unique_visitor_count`
+above. Standard tenant-isolation RLS, same pattern as every other
+tenant-scoped table — originally added by `0023_job_views.py`, now a
+no-op post-consolidation; the live policy is in `0001_initial_schema.py`
+along with everything else, see the RLS section below.
+
+| column | type | notes |
+|---|---|---|
+| id | uuid PK | |
+| tenant_id | uuid FK → tenants | RLS-scoped |
+| job_id | uuid FK → jobs | |
+| visitor_hash | text | `sha256(client_ip + jwt_secret)`, a salted hash of the requester's IP, never the raw IP itself. `jwt_secret` doubles as a pepper here purely for convenience (an existing secret, not a new one to manage), not because it's cryptographically special for this purpose. |
+| viewed_at | timestamptz | |
+| unique (job_id, visitor_hash) | | a repeat visit from the same person doesn't inflate the count |
+
+Written by `GET /public/jobs/{slug}` (`public_board.py`'s
+`_record_job_view`) on every hit to the public apply page: an
+`INSERT ... ON CONFLICT DO NOTHING` against the unique constraint, so a
+repeat view from the same visitor is a no-op rather than an error. This
+is distinct from `job_applications`' `applicant_count` (candidates who
+actually applied, shown publicly): `job_views` is page-view traffic,
+recruiter-facing only. See
+[10-job-board-and-applications.md](10-job-board-and-applications.md) and
+[05-dashboards-metrics.md](05-dashboards-metrics.md).
 
 ### `pipeline_templates`
 Org-level (or platform-level default) reusable stage sets.
@@ -87,10 +178,10 @@ Org-level (or platform-level default) reusable stage sets.
 |---|---|---|
 | id | uuid PK | |
 | template_id | uuid FK | |
-| name | text | Sourced / CV Shortlist / Contacted / First Cut / User Interview / Offer / Reject |
+| name | text | Sourced / CV Shortlist / Contacted / First Cut / User Interview / Offer / Signed / Reject |
 | position | int | display order |
 | is_terminal_reject | bool | marks the Reject-type stage for reporting |
-| is_terminal_success | bool | marks the Offer/Hired-type stage |
+| is_terminal_success | bool | marks the terminal-success stage — `Signed`, not `Offer` (extending an offer isn't a placement; the candidate signing it is). See [03-pipelines-and-boards.md](03-pipelines-and-boards.md). |
 
 ### `job_stages` (clone-on-create)
 A job's *own* pipeline — an independent copy made from the template at job
@@ -123,6 +214,7 @@ job so one candidate can sit in multiple pipelines.
 | source | text | how they entered (upload, manual, referral) |
 | current_position | text, nullable | denormalized from the current `candidate_documents.parsed_fields.position`, kept in sync on parse/edit — avoids parsing JSONB on every list/table row. See [04-cv-parser.md](04-cv-parser.md#parsed-field-schema-candidate_documentsparsed_fields). |
 | total_years_experience | text, nullable | same denormalization rationale as `current_position` |
+| location | text, nullable | same denormalization rationale as `current_position` — from `parsed_fields.location` (added 2026-08-27, migration `0030`). Free text (city + country), not a structured address; only the LLM tier fills it in — the rule-based/labeled-format tiers have no source for it and leave it null. Shown on Candidate Quick View and the candidate detail page, editable manually too. |
 | linkedin_url, github_url, portfolio_url | text, nullable | collected on the public application form; `github_url` only asked for when `jobs.is_technical_role` |
 | open_to_other_roles | bool default false | candidate opt-in, set at public application time — the sole gate for the cross-tenant RLS exception on this table, see below |
 | blacklisted | bool default false | per-tenant "Do Not Contact" flag — see below |
@@ -143,7 +235,7 @@ twice for the same role: show both CVs in one row."
 | file_id | uuid FK → `documents` | the stored file |
 | version_no | int | auto-incremented per candidate |
 | is_current | bool | exactly one `true` per (candidate_id, job_id) pair — the version shown by default |
-| parsed_fields | jsonb | structured CV Parser output for *this* document — canonical shape (name, position, summary, total_years_experience, technical_skills, education, certifications, main_projects) documented in [04-cv-parser.md](04-cv-parser.md#parsed-field-schema-candidate_documentsparsed_fields) |
+| parsed_fields | jsonb | structured CV Parser output for *this* document — canonical shape (name, position, location, summary, total_years_experience, technical_skills, education, certifications, main_projects) documented in [04-cv-parser.md](04-cv-parser.md#parsed-field-schema-candidate_documentsparsed_fields) |
 | parse_confidence | jsonb | per-field confidence scores, same shape as `parsed_fields` (array items scored individually), see [04-cv-parser.md](04-cv-parser.md#parsed-field-schema-candidate_documentsparsed_fields) |
 | parse_status | enum(`pending`, `needs_review`, `confirmed`, `failed`) | current parser always produces `needs_review` — there's no confidence threshold that auto-promotes to `confirmed` yet, see [04-cv-parser.md](04-cv-parser.md) |
 | uploaded_by | uuid FK → users | |
@@ -177,6 +269,9 @@ independently trackable across multiple jobs.
 | status | enum(`active`, `rejected`, `withdrawn`) default `active` | per-job status, independent of `candidates.blacklisted` |
 | status_reason | text, nullable | reject reason or withdrawal reason |
 | moved_by | uuid FK → users | who made the last move |
+| starting_date | date, nullable | captured via `PATCH /placements/{id}/offer-details`, prompted when the placement reaches `Signed` — the actual negotiated outcome, distinct from the job's advertised `salary_min`/`salary_max`. See [03-pipelines-and-boards.md](03-pipelines-and-boards.md). |
+| offer_rate | int, nullable | same capture as `starting_date`; feeds the dashboard's placement-value figure. See [05-dashboards-metrics.md](05-dashboards-metrics.md). |
+| offer_rate_currency | text, nullable | free-text currency label alongside `offer_rate` |
 | unique (candidate_id, job_id) | | one placement per candidate per job — reapplication updates it, never duplicates it |
 
 ### `stage_history`
@@ -322,13 +417,21 @@ picked specifically because the QA review flagged that UI-level hiding is
 not sufficient (a direct API call, an export job, or a backup restore must
 not be able to bypass it).
 
-- Implemented (see `backend/alembic/versions/0002_row_level_security.py`,
-  amended by `0006_job_board_and_applications.py` and
-  `0009_nullif_safe_rls_policies.py` — see gotcha below):
-  every RLS-scoped table (`jobs`, `candidates`, `job_stages`,
-  `pipeline_placements`, `stage_history`, `notes`, `candidate_documents`,
-  `documents`, `job_screening_questions`, `job_applications`, `teams`)
-  gets one policy: `current_setting('app.role', true) IS DISTINCT FROM
+- Implemented — **citations updated 2026-08-28 (flagged as drift): the
+  policies were originally introduced across `0002_row_level_security.py`,
+  `0006_job_board_and_applications.py`, `0009_nullif_safe_rls_policies.py`,
+  and `0023_job_views.py`, but all four were neutered into no-ops during
+  the 2026-08-26 migration consolidation (see docs/07's "Local dev
+  setup" section) — their `upgrade()`/`downgrade()` are now literally
+  `pass`. The real, current policy SQL for every one of these tables
+  lives entirely in `backend/alembic/versions/0001_initial_schema.py`
+  now; the four files above are worth reading for their docstrings'
+  historical narrative, but following them expecting to find live SQL
+  will find an empty stub.** Every RLS-scoped table (`jobs`, `candidates`,
+  `job_stages`, `pipeline_placements`, `stage_history`, `notes`,
+  `candidate_documents`, `documents`, `job_screening_questions`,
+  `job_applications`, `teams`, `job_views`) gets one policy:
+  `current_setting('app.role', true) IS DISTINCT FROM
   'superadmin' AND tenant_id = NULLIF(current_setting('app.tenant_id',
   true), '')::uuid`. The API connects as a single DB role and sets
   `app.role`/`app.tenant_id` per request via `set_config(..., true)`
@@ -336,15 +439,38 @@ not be able to bypass it).
   `app.role = 'superadmin'` matches no row, on any of these tables,
   independent of application code.
 - `candidates` additionally has an OR-based exception baked into its
-  policy (`0006_job_board_and_applications.py`, amended by `0009`):
+  policy (defined in `0001_initial_schema.py`'s `_CANDIDATES_USING`,
+  originally introduced across `0006_job_board_and_applications.py` and
+  `0009_nullif_safe_rls_policies.py` before the consolidation above):
   `... AND (tenant_id = NULLIF(current_setting('app.tenant_id', true),
   '')::uuid OR open_to_other_roles = true)`. A candidate who opted in at
   public-application time becomes readable to any recruiter platform-wide
   — the first of the app's narrow, deliberate cross-tenant exceptions.
-  Only summary fields are exposed at the schema/API level (name, position,
-  experience) — RLS just gates the row, not which columns come back. See
+  At the schema/API level the *list* endpoint (`/candidates/open-profiles`)
+  still only exposes summary fields (name, position, experience,
+  location) — RLS just gates the row, not which columns a given endpoint
+  chooses to return. See
   [10-job-board-and-applications.md](10-job-board-and-applications.md)
   ("Open profiles").
+- **Extended 2026-08-28** (`0031_open_profile_cv_notes_rls.py`) to
+  `candidate_documents`, `documents`, and `notes` — each with the same
+  `open_to_other_roles` OR-exception, joined back to `candidates` via
+  `candidate_id` (or, for `documents`, via `candidate_documents.file_id`
+  since `documents` has no `candidate_id` of its own — a JD-upload
+  document simply never matches that join and falls back to the standard
+  tenant check). This is what makes Candidate Quick View's CV and Notes
+  tabs actually work when opened from Open Profiles for a candidate in a
+  *different* tenant — a deliberate widening of the disclosure, not a
+  bug fix; see [10-job-board-and-applications.md](10-job-board-and-applications.md)
+  for what it means in practice (including that a "team"-visible note
+  becomes readable across orgs once the candidate is open, not just
+  visible to the viewer and the candidate's home org). Deliberately
+  **not** extended to `jobs`/`job_stages`/`pipeline_placements` — a
+  placement exposes the *hiring org's* job title/stage, not the
+  candidate's own data, and neither the candidate nor the hiring org
+  consented to that crossing the boundary. Those three tables keep the
+  standard tenant-only policy; a cross-tenant placement query just
+  returns zero rows, no special-cased application code needed.
 - `candidates` also has a **narrower-than-tenant** restriction, the
   opposite direction of the other exceptions above (0012_freelance_candidate_privacy.py):
   within the tenant-match branch, a Freelance Org row additionally
