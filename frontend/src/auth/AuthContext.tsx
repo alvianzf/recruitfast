@@ -1,6 +1,6 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
-import { api, getAccessToken, setAccessToken } from "../api/client";
+import { api, getAccessToken, getRefreshToken, setTokens } from "../api/client";
 
 interface JwtClaims {
   sub: string;
@@ -17,6 +17,7 @@ interface AuthUser {
 
 interface AuthContextValue {
   user: AuthUser | null;
+  loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
 }
@@ -42,21 +43,50 @@ function userFromToken(token: string | null): AuthUser | null {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(() => userFromToken(getAccessToken()));
+  // The access token is short-lived (15 min) by design; on a fresh page
+  // load it may have already expired while a still-valid refresh token
+  // sits in storage. Without this, every reload past 15 minutes would
+  // bounce a genuinely-still-logged-in user to /login.
+  const [loading, setLoading] = useState(() => !userFromToken(getAccessToken()) && !!getRefreshToken());
+
+  useEffect(() => {
+    if (!loading) return;
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) {
+      setLoading(false);
+      return;
+    }
+    api
+      .post("/auth/refresh", { refresh_token: refreshToken })
+      .then(({ data }) => {
+        setTokens(data.access_token, data.refresh_token);
+        setUser(userFromToken(data.access_token));
+      })
+      .catch(() => {
+        setTokens(null, null);
+        setUser(null);
+      })
+      .finally(() => setLoading(false));
+    // Runs once on mount — this is a one-shot boot-time recovery, not a
+    // reaction to `loading` changing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
+      loading,
       async login(email, password) {
         const { data } = await api.post("/auth/login", { email, password });
-        setAccessToken(data.access_token);
+        setTokens(data.access_token, data.refresh_token);
         setUser(userFromToken(data.access_token));
       },
       logout() {
-        setAccessToken(null);
+        setTokens(null, null);
         setUser(null);
       },
     }),
-    [user],
+    [user, loading],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
