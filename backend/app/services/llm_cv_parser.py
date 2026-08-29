@@ -48,6 +48,7 @@ Your task is to read a candidate's resume and produce a structured **JSON output
 {
   "name": "Full name",
   "position": "Position",
+  "location": "<candidate's current city and country, e.g. 'Jakarta, Indonesia' — where they live/are based, not a past project's location>",
   "summary": [
     "List of bullet points describing key strengths and professional background"
   ],
@@ -141,6 +142,7 @@ _EMPTY_SKILLS = {"programming_languages_and_frameworks": [], "databases": [], "a
 _REQUIRED_KEYS = (
     "name",
     "position",
+    "location",
     "summary",
     "total_years_experience",
     "technical_skills",
@@ -192,6 +194,7 @@ def _normalize(data: dict[str, Any]) -> dict[str, Any]:
     return {
         "name": data.get("name") or None,
         "position": data.get("position") or None,
+        "location": data.get("location") or None,
         "summary": data.get("summary") if isinstance(data.get("summary"), list) else [],
         "total_years_experience": data.get("total_years_experience") or None,
         "technical_skills": normalized_skills,
