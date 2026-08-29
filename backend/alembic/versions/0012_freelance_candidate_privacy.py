@@ -18,67 +18,28 @@ pipeline_placements/notes keep their existing tenant-wide RLS policies —
 every app code path reaches those through a `candidates` row first (see
 get_candidate, list_candidates), so RLS on `candidates` is the effective
 gate in practice. See docs/02 for the full writeup of this boundary.
+
+NEUTERED 2026-08-26: this migration's schema changes are now
+folded into 0001's create_all() (models.py already reflects them),
+and any RLS policy work here is superseded by 0001's consolidated
+policy setup. Any data backfill above only ever mattered for rows
+that existed in this project's own dev database at the time it was
+first applied there (already done, permanently) — a fresh install
+has no such rows to backfill. Kept as a no-op, not deleted, so the
+revision chain and this history stay intact. See 0001's docstring.
 """
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 
 revision = "0012"
 down_revision = "0011"
 branch_labels = None
 depends_on = None
 
-OLD_CANDIDATES_USING = (
-    "current_setting('app.role', true) IS DISTINCT FROM 'superadmin' "
-    "AND (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid OR open_to_other_roles = true)"
-)
-
-NEW_CANDIDATES_USING = (
-    "current_setting('app.role', true) IS DISTINCT FROM 'superadmin' "
-    "AND ("
-    "  ("
-    "    tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid"
-    "    AND ("
-    "      tenant_id NOT IN (SELECT id FROM tenants WHERE type = 'freelance_org')"
-    "      OR owner_user_id = NULLIF(current_setting('app.user_id', true), '')::uuid"
-    "    )"
-    "  )"
-    "  OR open_to_other_roles = true"
-    ")"
-)
-
 
 def upgrade() -> None:
-    op.add_column("candidates", sa.Column("owner_user_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id"), nullable=True))
-
-    # Best-effort backfill for existing rows: attribute ownership to
-    # whoever uploaded the current CV version, where known.
-    op.execute(
-        """
-        UPDATE candidates
-        SET owner_user_id = cd.uploaded_by
-        FROM candidate_documents cd
-        WHERE cd.candidate_id = candidates.id AND cd.is_current = true
-        """
-    )
-
-    op.execute("DROP POLICY IF EXISTS tenant_isolation ON candidates")
-    op.execute(
-        f"""
-        CREATE POLICY tenant_isolation ON candidates
-        USING ({NEW_CANDIDATES_USING})
-        WITH CHECK ({NEW_CANDIDATES_USING})
-        """
-    )
+    pass  # see docstring — folded into 0001
 
 
 def downgrade() -> None:
-    op.execute("DROP POLICY IF EXISTS tenant_isolation ON candidates")
-    op.execute(
-        f"""
-        CREATE POLICY tenant_isolation ON candidates
-        USING ({OLD_CANDIDATES_USING})
-        WITH CHECK ({OLD_CANDIDATES_USING})
-        """
-    )
-    op.drop_column("candidates", "owner_user_id")
+    pass  # see docstring — folded into 0001
