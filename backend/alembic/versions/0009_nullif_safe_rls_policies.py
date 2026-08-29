@@ -19,69 +19,28 @@ inherent Postgres behavior once app.tenant_id has been touched at all on
 a connection, which happens constantly in normal operation. The fix is
 NULLIF(x, '') before every ::uuid cast in every tenant_isolation policy,
 so both NULL and '' safely produce "no match" instead of an error.
+
+NEUTERED 2026-08-26: this migration's schema changes are now
+folded into 0001's create_all() (models.py already reflects them),
+and any RLS policy work here is superseded by 0001's consolidated
+policy setup. Any data backfill above only ever mattered for rows
+that existed in this project's own dev database at the time it was
+first applied there (already done, permanently) — a fresh install
+has no such rows to backfill. Kept as a no-op, not deleted, so the
+revision chain and this history stay intact. See 0001's docstring.
 """
 from alembic import op
+import sqlalchemy as sa
 
 revision = "0009"
 down_revision = "0008"
 branch_labels = None
 depends_on = None
 
-TENANT_SCOPED_TABLES = [
-    "jobs",
-    "candidates",
-    "job_stages",
-    "pipeline_placements",
-    "stage_history",
-    "notes",
-    "candidate_documents",
-    "documents",
-    "job_screening_questions",
-    "job_applications",
-]
-
-SAFE_USING = (
-    "current_setting('app.role', true) IS DISTINCT FROM 'superadmin' "
-    "AND tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid"
-)
-
-UNSAFE_USING = (
-    "current_setting('app.role', true) IS DISTINCT FROM 'superadmin' "
-    "AND tenant_id = current_setting('app.tenant_id', true)::uuid"
-)
-
-SAFE_CANDIDATES_USING = (
-    "current_setting('app.role', true) IS DISTINCT FROM 'superadmin' "
-    "AND (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid OR open_to_other_roles = true)"
-)
-
-UNSAFE_CANDIDATES_USING = (
-    "current_setting('app.role', true) IS DISTINCT FROM 'superadmin' "
-    "AND (tenant_id = current_setting('app.tenant_id', true)::uuid OR open_to_other_roles = true)"
-)
-
 
 def upgrade() -> None:
-    for table in TENANT_SCOPED_TABLES:
-        using = SAFE_CANDIDATES_USING if table == "candidates" else SAFE_USING
-        op.execute(f"DROP POLICY IF EXISTS tenant_isolation ON {table}")
-        op.execute(
-            f"""
-            CREATE POLICY tenant_isolation ON {table}
-            USING ({using})
-            WITH CHECK ({using})
-            """
-        )
+    pass  # see docstring — folded into 0001
 
 
 def downgrade() -> None:
-    for table in TENANT_SCOPED_TABLES:
-        using = UNSAFE_CANDIDATES_USING if table == "candidates" else UNSAFE_USING
-        op.execute(f"DROP POLICY IF EXISTS tenant_isolation ON {table}")
-        op.execute(
-            f"""
-            CREATE POLICY tenant_isolation ON {table}
-            USING ({using})
-            WITH CHECK ({using})
-            """
-        )
+    pass  # see docstring — folded into 0001
