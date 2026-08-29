@@ -42,3 +42,36 @@ export function useReassignJobs() {
         .data,
   });
 }
+
+export interface OrgProfile {
+  name: string;
+  slug: string | null;
+  logo_url: string | null;
+  description: string | null;
+  office_location: string | null;
+  contact_email: string | null;
+  preferred_currency: string;
+}
+
+export interface OrgProfileUpdateInput {
+  logo_url?: string | null;
+  description?: string | null;
+  office_location?: string | null;
+  contact_email?: string | null;
+  preferred_currency?: string;
+}
+
+export function useOrgProfile() {
+  return useQuery({
+    queryKey: ["org-profile"],
+    queryFn: async () => (await api.get<OrgProfile>("/org/profile")).data,
+  });
+}
+
+export function useUpdateOrgProfile() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: OrgProfileUpdateInput) => (await api.patch<OrgProfile>("/org/profile", input)).data,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["org-profile"] }),
+  });
+}
