@@ -23,6 +23,7 @@ class Candidate(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
     source: Mapped[str | None] = mapped_column(String, nullable=True)
     current_position: Mapped[str | None] = mapped_column(String, nullable=True)
     total_years_experience: Mapped[str | None] = mapped_column(String, nullable=True)
+    location: Mapped[str | None] = mapped_column(String, nullable=True)
     linkedin_url: Mapped[str | None] = mapped_column(String, nullable=True)
     github_url: Mapped[str | None] = mapped_column(String, nullable=True)
     portfolio_url: Mapped[str | None] = mapped_column(String, nullable=True)
