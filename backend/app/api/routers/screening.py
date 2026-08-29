@@ -6,7 +6,12 @@ from sqlalchemy.orm import Session
 from app.api.deps import CurrentUser, get_current_user, get_db
 from app.models.candidate import Candidate
 from app.models.job import Job
-from app.models.job_application import MAX_FREELANCE_SCREENING_QUESTIONS, JobApplication, JobScreeningQuestion
+from app.models.job_application import (
+    MAX_FREELANCE_SCREENING_QUESTIONS,
+    JobApplication,
+    JobScreeningQuestion,
+    ScreeningQuestionType,
+)
 from app.models.pipeline import JobStage
 from app.models.placement import PipelinePlacement, PlacementStatus
 from app.models.tenant import Tenant, TenantType
@@ -63,7 +68,10 @@ def add_screening_question(
         tenant_id=job.tenant_id,
         job_id=job_id,
         question_text=payload.question_text,
+        question_type=ScreeningQuestionType(payload.question_type),
         expected_answer=payload.expected_answer,
+        min_value=payload.min_value,
+        required=payload.required,
         position=current_count,
     )
     db.add(question)
@@ -112,7 +120,7 @@ def list_applications(
     query = (
         db.query(JobApplication, Candidate)
         .join(Candidate, Candidate.id == JobApplication.candidate_id)
-        .filter(JobApplication.job_id == job_id)
+        .filter(JobApplication.job_id == job_id, Candidate.deleted_at.is_(None))
     )
     if eligible is not None:
         query = query.filter(JobApplication.eligible == eligible)
