@@ -10,7 +10,20 @@ import { ToastProvider } from "./components/ToastProvider";
 import { buildTheme } from "./theme";
 import "./index.css";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Default staleTime is 0, which refetches every query on every
+      // component mount and window focus — most of this app's data
+      // (jobs, candidates, clients, teams, org profile) doesn't change
+      // second-to-second, and every mutation hook already calls
+      // invalidateQueries on the relevant key, so this doesn't trade away
+      // freshness where it actually matters, just the redundant refetch
+      // of data that hasn't changed.
+      staleTime: 30_000,
+    },
+  },
+});
 
 function Root() {
   // Deliberately NOT following prefers-color-scheme — the off-white
