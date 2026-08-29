@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
-import { Box, Paper, Stack, Typography } from "@mui/material";
+import { Box, Paper, Stack, Typography, useTheme } from "@mui/material";
+
+import { BRAND_PRIMARY_DARK } from "../theme";
 
 export default function StatTile({
   label,
@@ -10,6 +12,8 @@ export default function StatTile({
   value: ReactNode;
   icon: ReactNode;
 }) {
+  const theme = useTheme();
+
   return (
     <Paper sx={{ p: 2.5, height: "100%" }} elevation={0}>
       <Stack spacing={1.5}>
@@ -21,14 +25,14 @@ export default function StatTile({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            bgcolor: "primary.main",
-            color: "primary.contrastText",
+            backgroundImage: `radial-gradient(circle at 30% 30%, ${theme.palette.primary.main}, ${BRAND_PRIMARY_DARK})`,
+            color: "#ffffff",
           }}
         >
           {icon}
         </Box>
         <Box>
-          <Typography variant="h5" sx={{ fontWeight: 700 }}>
+          <Typography variant="h4" sx={{ fontWeight: 700 }}>
             {value}
           </Typography>
           <Typography variant="body2" color="text.secondary">
