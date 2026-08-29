@@ -7,10 +7,44 @@ from app.api.deps import CurrentUser, get_db, require_role
 from app.core.security import hash_password
 from app.models.job import Job
 from app.models.team import Team
+from app.models.tenant import Tenant
 from app.models.user import User, UserRole, UserStatus
-from app.schemas.org import AssignTeamRequest, RecruiterInvite, RecruiterOut, ReassignJobsRequest
+from app.schemas.org import (
+    AssignTeamRequest,
+    OrgProfileOut,
+    OrgProfileUpdate,
+    RecruiterInvite,
+    RecruiterOut,
+    ReassignJobsRequest,
+)
+from app.services.seats import check_recruiter_seat_available
 
 router = APIRouter(prefix="/org", tags=["org"])
+
+
+@router.get("/profile", response_model=OrgProfileOut)
+def get_org_profile(
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_role("org_admin")),
+) -> Tenant:
+    tenant = db.query(Tenant).filter(Tenant.id == uuid.UUID(current_user.tenant_id)).first()
+    if tenant is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Organization not found")
+    return tenant
+
+
+@router.patch("/profile", response_model=OrgProfileOut)
+def update_org_profile(
+    payload: OrgProfileUpdate,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_role("org_admin")),
+) -> Tenant:
+    tenant = db.query(Tenant).filter(Tenant.id == uuid.UUID(current_user.tenant_id)).first()
+    if tenant is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Organization not found")
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(tenant, field, value)
+    return tenant
 
 
 @router.get("/recruiters", response_model=list[RecruiterOut])
@@ -41,6 +75,11 @@ def invite_recruiter(
     existing = db.query(User).filter(User.email == payload.email).first()
     if existing is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, detail="Email already registered")
+
+    tenant = db.query(Tenant).filter(Tenant.id == uuid.UUID(current_user.tenant_id)).first()
+    if tenant is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Organization not found")
+    check_recruiter_seat_available(db, tenant)
 
     user = User(
         tenant_id=uuid.UUID(current_user.tenant_id),
