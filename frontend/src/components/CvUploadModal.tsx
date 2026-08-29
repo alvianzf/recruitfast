@@ -23,6 +23,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 
 import { useCvCommit, useCvParsePreview, type CVCommitItem, type CVPreviewItem } from "../api/candidates";
+import { useToast } from "./ToastProvider";
 
 const ACCEPTED_EXTENSIONS = [".pdf", ".docx"];
 const MAX_FILES = 50;
@@ -53,6 +54,7 @@ export default function CvUploadModal({ open, onClose }: { open: boolean; onClos
 
   const preview = useCvParsePreview();
   const commit = useCvCommit();
+  const { showToast } = useToast();
 
   function handleClose() {
     setRows([]);
@@ -64,8 +66,25 @@ export default function CvUploadModal({ open, onClose }: { open: boolean; onClos
   async function addFiles(fileList: FileList | File[]) {
     const files = Array.from(fileList).slice(0, MAX_FILES - rows.length);
     if (files.length === 0) return;
-    const items = await preview.mutateAsync(files);
-    setRows((prev) => [...prev, ...items.map(toRowState)]);
+    try {
+      const items = await preview.mutateAsync(files);
+      setRows((prev) => [...prev, ...items.map(toRowState)]);
+    } catch (err) {
+      // Previously this rejection went nowhere — the drop zone just sat
+      // there with no feedback, which read as "upload silently broke" and
+      // was easy to misattribute to whatever the recruiter did right
+      // before it (e.g. cancelling a prior attempt). Root cause was
+      // usually nginx's client_max_body_size rejecting an oversized
+      // multi-file batch (413) before the request ever reached the app —
+      // see docs/09's Limits section.
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      showToast(
+        status === 413
+          ? "That batch is too large to upload in one go — try fewer files at once."
+          : "Could not upload one or more files. Please try again.",
+        "error",
+      );
+    }
   }
 
   function updateRow(tempId: string, patch: Partial<RowState>) {
@@ -89,6 +108,7 @@ export default function CvUploadModal({ open, onClose }: { open: boolean; onClos
       current_position: (r.item.parsed_fields as { position?: string } | null)?.position ?? undefined,
       total_years_experience:
         (r.item.parsed_fields as { total_years_experience?: string } | null)?.total_years_experience ?? undefined,
+      location: (r.item.parsed_fields as { location?: string } | null)?.location ?? undefined,
       parsed_fields: r.item.parsed_fields,
       parse_confidence: r.item.parse_confidence,
     }));
@@ -185,7 +205,9 @@ export default function CvUploadModal({ open, onClose }: { open: boolean; onClos
                                 label={(row.item.parsed_fields as { position?: string }).position}
                               />
                             )}
-                            <Chip size="small" label="Needs review" color="warning" variant="outlined" />
+                            {row.item.parse_status === "needs_review" && (
+                              <Chip size="small" label="Needs review" color="warning" variant="outlined" />
+                            )}
                           </Stack>
 
                           {row.item.possible_duplicate && (
