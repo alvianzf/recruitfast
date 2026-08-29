@@ -12,9 +12,16 @@ from pathlib import Path
 STORAGE_ROOT = Path(__file__).resolve().parent.parent.parent / "storage"
 TEMP_ROOT = STORAGE_ROOT / "tmp"
 PERMANENT_ROOT = STORAGE_ROOT / "documents"
+# Separate from PERMANENT_ROOT/documents on purpose: documents are
+# candidate CVs, only ever served through an authenticated,
+# tenant-scoped endpoint. Images saved here (org logos, user avatars)
+# are mounted as a plain static directory (see app/main.py) since they
+# need to render unauthenticated on the public job board.
+PUBLIC_ROOT = STORAGE_ROOT / "public"
 
 TEMP_ROOT.mkdir(parents=True, exist_ok=True)
 PERMANENT_ROOT.mkdir(parents=True, exist_ok=True)
+PUBLIC_ROOT.mkdir(parents=True, exist_ok=True)
 
 
 def sha256_of_file(path: Path) -> str:
@@ -60,3 +67,15 @@ def promote_temp_to_permanent(temp_path: Path, tenant_id: str) -> str:
 
 def cleanup_temp(temp_path: Path) -> None:
     temp_path.unlink(missing_ok=True)
+
+
+def save_public_image(upload_bytes: bytes, original_filename: str, subdir: str) -> str:
+    """Save an image straight to public storage (no temp/preview step —
+    unlike CVs, there's nothing to parse first). Returns a path relative
+    to PUBLIC_ROOT, which app/main.py mounts at /media."""
+    ext = Path(original_filename).suffix.lower()
+    dest_dir = PUBLIC_ROOT / subdir
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest = dest_dir / f"{uuid.uuid4()}{ext}"
+    dest.write_bytes(upload_bytes)
+    return str(dest.relative_to(PUBLIC_ROOT)).replace("\\", "/")
