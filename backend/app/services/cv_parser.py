@@ -308,6 +308,11 @@ def _try_labeled_format(text: str) -> dict[str, Any] | None:
     return {
         "name": name,
         "position": position,
+        # Not extractable from this fixed legacy template — no "LOCATION"
+        # label exists in its BASIC INFO block (only per-project location
+        # inside MAIN PROJECTS, a different concept). Only the LLM tier
+        # fills this in; see llm_cv_parser.py.
+        "location": None,
         "summary": summary,
         "total_years_experience": None,
         "technical_skills": skills,
@@ -352,6 +357,7 @@ def parse_cv_text(text: str) -> tuple[dict[str, Any], dict[str, Any], str]:
             "email": 0.95 if email_match else 0.0,
             "phone": 0.85 if phone else 0.0,
             "position": 0.85 if labeled["position"] else 0.0,
+            "location": 0.0,
             "summary": 0.8 if labeled["summary"] else 0.0,
             "total_years_experience": 0.0,
             "technical_skills": 0.85 if any(labeled["technical_skills"].values()) else 0.0,
@@ -367,6 +373,7 @@ def parse_cv_text(text: str) -> tuple[dict[str, Any], dict[str, Any], str]:
             "email": email_match.group(0) if email_match else None,
             "phone": phone,
             "position": None,
+            "location": None,
             "summary": [],
             "total_years_experience": None,
             "technical_skills": {
@@ -384,6 +391,7 @@ def parse_cv_text(text: str) -> tuple[dict[str, Any], dict[str, Any], str]:
             "email": 0.95 if email_match else 0.0,
             "phone": 0.75 if phone else 0.0,
             "position": 0.0,
+            "location": 0.0,
             "summary": 0.0,
             "total_years_experience": 0.0,
             "technical_skills": 0.0,
