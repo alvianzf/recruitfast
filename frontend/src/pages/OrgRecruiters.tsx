@@ -6,6 +6,7 @@ import {
   Dialog,
   DialogActions,
   DialogContent,
+  DialogContentText,
   DialogTitle,
   FormControl,
   IconButton,
@@ -19,6 +20,7 @@ import {
   TableCell,
   TableContainer,
   TableHead,
+  TablePagination,
   TableRow,
   TextField,
   Typography,
@@ -28,23 +30,33 @@ import PersonAddOutlinedIcon from "@mui/icons-material/PersonAddOutlined";
 import GroupsOutlinedIcon from "@mui/icons-material/GroupsOutlined";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlined";
 import AddIcon from "@mui/icons-material/Add";
+import { isAxiosError } from "axios";
 
 import { useDeactivateRecruiter, useInviteRecruiter, useReassignJobs, useRecruiters, type Recruiter } from "../api/org";
 import { useAssignRecruiterTeam, useCreateTeam, useDeleteTeam, useTeams } from "../api/teams";
 import PageHeader from "../components/PageHeader";
+import { useToast } from "../components/ToastProvider";
+import { usePagination } from "../hooks/usePagination";
 
 function InviteDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const invite = useInviteRecruiter();
+  const { showToast } = useToast();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   async function handleSubmit() {
-    await invite.mutateAsync({ full_name: fullName, email, password });
-    setFullName("");
-    setEmail("");
-    setPassword("");
-    onClose();
+    try {
+      await invite.mutateAsync({ full_name: fullName, email, password });
+      showToast("Recruiter invited.");
+      setFullName("");
+      setEmail("");
+      setPassword("");
+      onClose();
+    } catch (err) {
+      const detail = isAxiosError(err) ? err.response?.data?.detail : null;
+      showToast(detail || "Could not invite the recruiter. Please try again.", "error");
+    }
   }
 
   return (
@@ -56,7 +68,7 @@ function InviteDialog({ open, onClose }: { open: boolean; onClose: () => void })
           <TextField label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} fullWidth />
           <TextField
             label="Initial password"
-            type="text"
+            type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             fullWidth
@@ -90,14 +102,19 @@ function ReassignDialog({
   onClose: () => void;
 }) {
   const reassign = useReassignJobs();
+  const { showToast } = useToast();
   const [targetId, setTargetId] = useState<string | null>(null);
 
   async function handleSubmit() {
     if (!recruiter || !targetId) return;
-    const result = await reassign.mutateAsync({ fromId: recruiter.id, toId: targetId });
-    setTargetId(null);
-    onClose();
-    alert(`Reassigned ${result.reassigned_count} job(s).`);
+    try {
+      const result = await reassign.mutateAsync({ fromId: recruiter.id, toId: targetId });
+      setTargetId(null);
+      onClose();
+      showToast(`Reassigned ${result.reassigned_count} job(s).`);
+    } catch {
+      showToast("Could not reassign jobs. Please try again.", "error");
+    }
   }
 
   const others = recruiters.filter((r) => r.id !== recruiter?.id);
@@ -129,12 +146,27 @@ function ManageTeamsDialog({ open, onClose }: { open: boolean; onClose: () => vo
   const { data: teams } = useTeams();
   const createTeam = useCreateTeam();
   const deleteTeam = useDeleteTeam();
+  const { showToast } = useToast();
   const [name, setName] = useState("");
 
   async function handleCreate() {
     if (!name.trim()) return;
-    await createTeam.mutateAsync(name.trim());
-    setName("");
+    try {
+      await createTeam.mutateAsync(name.trim());
+      showToast("Team created.");
+      setName("");
+    } catch {
+      showToast("Could not create the team. Please try again.", "error");
+    }
+  }
+
+  async function handleDelete(teamId: string) {
+    try {
+      await deleteTeam.mutateAsync(teamId);
+      showToast("Team deleted.");
+    } catch {
+      showToast("Could not delete the team. Please try again.", "error");
+    }
   }
 
   return (
@@ -146,7 +178,7 @@ function ManageTeamsDialog({ open, onClose }: { open: boolean; onClose: () => vo
             <Stack key={t.id} direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
               <Typography sx={{ flex: 1 }}>{t.name}</Typography>
               <Chip size="small" label={`${t.member_count} member${t.member_count === 1 ? "" : "s"}`} variant="outlined" />
-              <IconButton size="small" onClick={() => deleteTeam.mutate(t.id)}>
+              <IconButton size="small" onClick={() => handleDelete(t.id)}>
                 <DeleteOutlineIcon fontSize="small" />
               </IconButton>
             </Stack>
@@ -190,10 +222,23 @@ export default function OrgRecruiters() {
   const { data: teams } = useTeams();
   const deactivate = useDeactivateRecruiter();
   const assignTeam = useAssignRecruiterTeam();
+  const { showToast } = useToast();
   const [inviteOpen, setInviteOpen] = useState(false);
   const [teamsOpen, setTeamsOpen] = useState(false);
   const [reassignTarget, setReassignTarget] = useState<Recruiter | null>(null);
+  const [deactivateTarget, setDeactivateTarget] = useState<Recruiter | null>(null);
   const [menuState, setMenuState] = useState<{ anchor: HTMLElement; recruiter: Recruiter } | null>(null);
+  const { page, setPage, paged: pagedRecruiters, pageSize } = usePagination(recruiters ?? [], 10);
+
+  async function handleDeactivate(recruiterId: string) {
+    try {
+      await deactivate.mutateAsync(recruiterId);
+      showToast("Recruiter deactivated.");
+      setDeactivateTarget(null);
+    } catch {
+      showToast("Could not deactivate the recruiter. Please try again.", "error");
+    }
+  }
 
   return (
     <Stack spacing={3}>
@@ -219,7 +264,7 @@ export default function OrgRecruiters() {
             </TableRow>
           </TableHead>
           <TableBody>
-            {recruiters?.map((r) => (
+            {pagedRecruiters.map((r) => (
               <TableRow key={r.id} hover>
                 <TableCell sx={{ fontWeight: 600 }}>{r.full_name}</TableCell>
                 <TableCell>{r.email}</TableCell>
@@ -265,6 +310,14 @@ export default function OrgRecruiters() {
             ))}
           </TableBody>
         </Table>
+        <TablePagination
+          component="div"
+          count={recruiters?.length ?? 0}
+          page={page}
+          onPageChange={(_, p) => setPage(p)}
+          rowsPerPage={pageSize}
+          rowsPerPageOptions={[pageSize]}
+        />
       </TableContainer>
 
       <Menu anchorEl={menuState?.anchor} open={!!menuState} onClose={() => setMenuState(null)}>
@@ -278,13 +331,36 @@ export default function OrgRecruiters() {
         </MenuItem>
         <MenuItem
           onClick={() => {
-            if (menuState) deactivate.mutate(menuState.recruiter.id);
+            if (menuState) setDeactivateTarget(menuState.recruiter);
             setMenuState(null);
           }}
         >
           Deactivate
         </MenuItem>
       </Menu>
+
+      <Dialog open={!!deactivateTarget} onClose={() => setDeactivateTarget(null)}>
+        <DialogTitle sx={{ fontWeight: 700 }}>Deactivate {deactivateTarget?.full_name}?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            They won't be able to sign in until reactivated. Their open jobs stay assigned to them — reassign first
+            if someone else needs to pick them up.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3 }}>
+          <Button onClick={() => setDeactivateTarget(null)} color="inherit">
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            disabled={deactivate.isPending}
+            onClick={() => deactivateTarget && handleDeactivate(deactivateTarget.id)}
+          >
+            Deactivate
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <InviteDialog open={inviteOpen} onClose={() => setInviteOpen(false)} />
       <ReassignDialog recruiter={reassignTarget} recruiters={recruiters ?? []} onClose={() => setReassignTarget(null)} />
