@@ -19,8 +19,8 @@ and what's deliberately deferred with a reason.
 | Deleting a pipeline stage with active candidates? | Blocked until they're reassigned via a mandatory picker. | [03](03-pipelines-and-boards.md) |
 | Renaming a stage — does it corrupt history? | No — history references stage IDs with a label snapshot, not live names. | [02](02-data-model.md), [03](03-pipelines-and-boards.md) |
 | Org template vs. per-job pipeline drift? | Clone-on-create; template edits don't retroactively touch existing jobs. | [02](02-data-model.md), [03](03-pipelines-and-boards.md) |
-| CV parsing accuracy without a hosted LLM? | Yes — target design is hybrid rule-based + local SLM, self-hosted, with confidence scoring and a mandatory human-review queue for low-confidence fields. **Only the rule-based half is built** (labeled-format template parser + generic regex fallback); the local-SLM semantic layer for free-text resumes was never implemented — a real gap versus this decision, not just a phasing note. | [04](04-cv-parser.md) |
-| Freelance recruiter entry to a shared tenant? | Gated by a Superadmin approval queue, not open self-serve. | [01](01-roles-permissions.md) |
+| CV parsing accuracy without a hosted LLM? | **Superseded 2026-08-28 (flagged as drift — this row answered "yes" to a decision the shipped system no longer makes):** the original target was a hybrid rule-based + local SLM pipeline, self-hosted, no external API. What actually shipped instead is a **hosted, third-party LLM API** tier (`llm_cv_parser.py`), enabled by default and tried before the deterministic parsers — a deliberate reversal made at explicit product direction, not an unbuilt gap. Confidence scoring and the mandatory human-review queue are both real and apply to the LLM tier's output too. | [04](04-cv-parser.md) |
+| Freelance recruiter entry to a shared tenant? | Changed 2026-08-26: open self-serve, immediate access, no Superadmin approval gate. A subscription/payment gate is the planned future replacement, not yet built. | [01](01-roles-permissions.md), [07](07-tech-stack.md#billing) |
 
 ## Deferred to P1/P2 (with reasons)
 
@@ -68,6 +68,13 @@ adding them.
   `deleted_at` soft-delete convention is in place now; a proper erasure
   workflow (anonymize rather than hard-delete where it would break another
   recruiter's active pipeline) is deferred.
+- **Freelance subscription/payment gate (P1)** — freelance self-registration
+  is fully open today (see the decision above); the intended long-term
+  control on access is a paid subscription rather than manual review. No
+  payment processor call happens anywhere in the freelance registration
+  path yet — this reuses the same not-yet-wired Stripe integration noted
+  under Billing ([07](07-tech-stack.md#billing)), scoped specifically to
+  gating/upgrading a freelance account rather than an org's seat count.
 - **Reporting/export (P1)** — must reuse the same tenant/role authorization
   as the UI (a CSV export is not a permission bypass) — noted as a
   requirement now, built once there's a concrete report to export.
@@ -82,10 +89,12 @@ adding them.
   `GET /candidates/open-profiles`, `GET /jobs/{id}/applications`,
   `GET /metrics/org/recruiters`, etc. all return every matching row.
   Fine at current dev scale; will not hold up for a large org tenant.
-- **N+1 query pattern in `/metrics/org/recruiters`** — runs 5 separate
-  count/aggregate queries per recruiter in a Python loop rather than one
-  batched query. Correct, but won't scale past a handful of recruiters
-  without becoming a real latency problem.
+- ~~**N+1 query pattern in `/metrics/org/recruiters`**~~ — **Fixed
+  2026-08-26**: was 5 separate count/aggregate queries per recruiter in a
+  Python loop; now 3 batched, grouped queries total regardless of
+  recruiter count, bucketed in Python. See
+  [11-security-review.md](11-security-review.md)'s sibling performance
+  pass note and `metrics.py`.
 
 ## Explicitly unresolved — needs a business decision, not an engineering one
 
