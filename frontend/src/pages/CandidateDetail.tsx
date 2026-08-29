@@ -8,23 +8,26 @@ import {
   Button,
   Chip,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   Divider,
-  FormControlLabel,
   Grid,
   IconButton,
   ListItemIcon,
   Menu,
   MenuItem,
   Paper,
-  Radio,
-  RadioGroup,
   Stack,
   Table,
   TableBody,
   TableCell,
   TableHead,
+  TablePagination,
   TableRow,
-  TextField,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
@@ -33,18 +36,27 @@ import BlockOutlinedIcon from "@mui/icons-material/BlockOutlined";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlined";
+import AddIcon from "@mui/icons-material/Add";
+import LinkOffIcon from "@mui/icons-material/LinkOff";
+import PublicIcon from "@mui/icons-material/Public";
 
 import { useCandidate } from "../api/candidates";
-import { useAddCandidateNote, useCandidateNotes } from "../api/notes";
 import { useBlacklistStatuses } from "../api/blacklist";
+import { useDeletePlacement } from "../api/pipeline";
+import { useMe } from "../api/users";
+import { usePagination } from "../hooks/usePagination";
 import Breadcrumbs from "../components/Breadcrumbs";
 import PageHeader from "../components/PageHeader";
 import BlacklistBadge from "../components/BlacklistBadge";
+import StatusChip from "../components/StatusChip";
 import ParsedDataTable from "../components/ParsedDataTable";
 import CvPreviewPanel from "../components/CvPreviewPanel";
 import BlacklistCandidateDialog from "../components/BlacklistCandidateDialog";
 import EditCandidateDialog from "../components/EditCandidateDialog";
 import DeleteCandidateDialog from "../components/DeleteCandidateDialog";
+import AttachToJobDialog from "../components/AttachToJobDialog";
+import NotesPanel from "../components/NotesPanel";
+import { useToast } from "../components/ToastProvider";
 
 function InfoRow({ label, value }: { label: string; value: string | null }) {
   if (!value) return null;
@@ -58,82 +70,36 @@ function InfoRow({ label, value }: { label: string; value: string | null }) {
   );
 }
 
-function NotesPanel({ candidateId }: { candidateId: string }) {
-  const { data: notes } = useCandidateNotes(candidateId);
-  const addNote = useAddCandidateNote(candidateId);
-  const [body, setBody] = useState("");
-  const [visibility, setVisibility] = useState<"team" | "private">("team");
-
-  async function handleAdd() {
-    if (!body.trim()) return;
-    await addNote.mutateAsync({ body, visibility });
-    setBody("");
-  }
-
-  return (
-    <Paper sx={{ p: 2.5 }}>
-      <Typography sx={{ fontWeight: 700, mb: 2 }}>Notes</Typography>
-      <Stack spacing={2}>
-        <TextField
-          label="Add a note"
-          multiline
-          minRows={2}
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          fullWidth
-        />
-        <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center" }}>
-          <RadioGroup row value={visibility} onChange={(e) => setVisibility(e.target.value as "team" | "private")}>
-            <FormControlLabel value="team" control={<Radio size="small" />} label="Team-visible" />
-            <FormControlLabel value="private" control={<Radio size="small" />} label="Private to me" />
-          </RadioGroup>
-          <Button variant="contained" size="small" disabled={!body.trim() || addNote.isPending} onClick={handleAdd}>
-            Add note
-          </Button>
-        </Stack>
-        <Divider />
-        <Stack spacing={1.5}>
-          {notes?.map((note) => (
-            <Stack key={note.id} spacing={0.25}>
-              <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
-                <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                  {note.author.full_name}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {new Date(note.created_at).toLocaleString()}
-                </Typography>
-                {note.visibility === "private" && (
-                  <Chip
-                    size="small"
-                    icon={<LockOutlinedIcon sx={{ fontSize: 14 }} />}
-                    label="private to you"
-                    variant="outlined"
-                  />
-                )}
-              </Stack>
-              <Typography variant="body2">{note.body}</Typography>
-            </Stack>
-          ))}
-          {notes?.length === 0 && (
-            <Typography variant="body2" color="text.secondary">
-              No notes yet.
-            </Typography>
-          )}
-        </Stack>
-      </Stack>
-    </Paper>
-  );
-}
-
 export default function CandidateDetail() {
   const { candidateId = "" } = useParams();
-  const { data: candidate, isLoading } = useCandidate(candidateId);
+  const { data: candidate, isLoading, isError } = useCandidate(candidateId);
   const navigate = useNavigate();
   const [blacklistOpen, setBlacklistOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [attachOpen, setAttachOpen] = useState(false);
+  const [detachTarget, setDetachTarget] = useState<{ id: string; jobTitle: string } | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const { data: blacklistStatuses } = useBlacklistStatuses([candidate?.email]);
+  const detachPlacement = useDeletePlacement();
+  const { showToast } = useToast();
+  const { data: me } = useMe();
+  const {
+    page: placementsPage,
+    setPage: setPlacementsPage,
+    paged: pagedPlacements,
+    pageSize: placementsPageSize,
+  } = usePagination(candidate?.placements ?? [], 10);
+
+  if (isError) {
+    return (
+      <Stack sx={{ alignItems: "center", py: 8 }}>
+        <Typography color="text.secondary">
+          Couldn't load this candidate — they may not exist, or you may not have access.
+        </Typography>
+      </Stack>
+    );
+  }
 
   if (isLoading || !candidate) {
     return (
@@ -150,6 +116,22 @@ export default function CandidateDetail() {
     <Stack spacing={2}>
       <Breadcrumbs items={[{ label: "Candidates", to: "/app/candidates" }, { label: candidate.full_name }]} />
       <PageHeader title={candidate.full_name}>
+        <Tooltip
+          title={
+            candidate.open_to_other_roles
+              ? "Visible to every recruiter on the platform"
+              : me?.tenant_type === "freelance_org"
+                ? "Private to you"
+                : "Visible within your organization only"
+          }
+        >
+          <Chip
+            size="small"
+            variant="outlined"
+            icon={candidate.open_to_other_roles ? <PublicIcon sx={{ fontSize: 14 }} /> : <LockOutlinedIcon sx={{ fontSize: 14 }} />}
+            label={candidate.open_to_other_roles ? "Public" : "Private"}
+          />
+        </Tooltip>
         <BlacklistBadge status={elsewhereStatus} />
         <IconButton onClick={(e) => setMenuAnchor(e.currentTarget)}>
           <MoreVertIcon fontSize="small" />
@@ -201,6 +183,7 @@ export default function CandidateDetail() {
             <Paper sx={{ p: 2.5 }}>
               <Stack spacing={1}>
                 <InfoRow label="Position" value={candidate.current_position} />
+                <InfoRow label="Location" value={candidate.location} />
                 <InfoRow label="Email" value={candidate.email} />
                 <InfoRow label="Phone" value={candidate.phone} />
                 <InfoRow label="Source" value={candidate.source} />
@@ -272,9 +255,18 @@ export default function CandidateDetail() {
               </>
             )}
 
-            {candidate.placements.length > 0 && (
-              <Paper sx={{ p: 2.5 }}>
-                <Typography sx={{ fontWeight: 700, mb: 1.5 }}>Job History</Typography>
+            <Paper sx={{ p: 2.5 }}>
+              <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center", mb: 1.5 }}>
+                <Typography sx={{ fontWeight: 700 }}>Job History</Typography>
+                <Button size="small" startIcon={<AddIcon fontSize="small" />} onClick={() => setAttachOpen(true)}>
+                  Attach to job
+                </Button>
+              </Stack>
+              {candidate.placements.length === 0 ? (
+                <Typography variant="body2" color="text.secondary">
+                  Not attached to any job yet.
+                </Typography>
+              ) : (
                 <Table size="small">
                   <TableHead>
                     <TableRow>
@@ -283,29 +275,45 @@ export default function CandidateDetail() {
                       <TableCell>Status</TableCell>
                       <TableCell>Applied</TableCell>
                       <TableCell>Last moved</TableCell>
+                      <TableCell />
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {candidate.placements.map((p) => (
+                    {pagedPlacements.map((p) => (
                       <TableRow key={p.job_id}>
                         <TableCell sx={{ pl: 0, fontWeight: 600 }}>{p.job_title}</TableCell>
                         <TableCell>{p.stage_name}</TableCell>
                         <TableCell>
-                          <Chip
-                            size="small"
-                            variant="outlined"
-                            label={p.status}
-                            color={p.status === "rejected" ? "error" : p.status === "withdrawn" ? "default" : "success"}
-                          />
+                          <StatusChip status={p.status} />
                         </TableCell>
                         <TableCell>{new Date(p.applied_at).toLocaleDateString()}</TableCell>
                         <TableCell>{new Date(p.last_moved_at).toLocaleDateString()}</TableCell>
+                        <TableCell align="right">
+                          <Tooltip title="Detach from this job">
+                            <IconButton
+                              size="small"
+                              onClick={() => setDetachTarget({ id: p.id, jobTitle: p.job_title })}
+                            >
+                              <LinkOffIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
-              </Paper>
-            )}
+              )}
+              {candidate.placements.length > 0 && (
+                <TablePagination
+                  component="div"
+                  count={candidate.placements.length}
+                  page={placementsPage}
+                  onPageChange={(_, p) => setPlacementsPage(p)}
+                  rowsPerPage={placementsPageSize}
+                  rowsPerPageOptions={[placementsPageSize]}
+                />
+              )}
+            </Paper>
           </Stack>
         </Grid>
 
@@ -336,6 +344,43 @@ export default function CandidateDetail() {
         onClose={() => setDeleteOpen(false)}
         onDeleted={() => navigate("/app/candidates")}
       />
+      <AttachToJobDialog
+        candidateId={candidateId}
+        candidateName={candidate.full_name}
+        open={attachOpen}
+        onClose={() => setAttachOpen(false)}
+      />
+      <Dialog open={!!detachTarget} onClose={() => setDetachTarget(null)}>
+        <DialogTitle sx={{ fontWeight: 700 }}>Detach from {detachTarget?.jobTitle}?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            This removes {candidate.full_name} from this job's pipeline entirely, including their stage history.
+            Attaching them again later starts fresh.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3 }}>
+          <Button onClick={() => setDetachTarget(null)} color="inherit">
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            disabled={detachPlacement.isPending}
+            onClick={async () => {
+              if (!detachTarget) return;
+              try {
+                await detachPlacement.mutateAsync(detachTarget.id);
+                showToast("Detached.");
+              } catch {
+                showToast("Could not detach this candidate. Please try again.", "error");
+              }
+              setDetachTarget(null);
+            }}
+          >
+            {detachPlacement.isPending ? "Detaching…" : "Detach"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Stack>
   );
 }
