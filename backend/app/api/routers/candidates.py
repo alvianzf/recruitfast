@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from fastapi.responses import FileResponse
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.api.deps import CurrentUser, get_current_user, get_db
@@ -16,14 +17,18 @@ from app.models.placement import PipelinePlacement
 from app.schemas.candidate import (
     CandidateDetailOut,
     CandidateOut,
+    CandidateSearchRequest,
+    CandidateSearchResult,
     CandidateUpdate,
     CurrentDocumentOut,
     CVCommitRequest,
     CVCommitResponse,
     CVPreviewItem,
     CVPreviewResponse,
+    MatchedSkillOut,
     PlacementSummary,
     PossibleDuplicate,
+    SkillFilterIn,
 )
 from app.schemas.screening import OpenProfileCandidate
 from app.services import storage
@@ -68,15 +73,147 @@ def open_profiles(
     return db.query(Candidate).filter(Candidate.open_to_other_roles.is_(True), Candidate.deleted_at.is_(None)).all()
 
 
+def _findable_candidates(db: Session, tenant_id: uuid.UUID) -> list[Candidate]:
+    # The pool "Find Candidates" searches: this tenant's own candidates,
+    # plus every open-profile candidate platform-wide (same cross-tenant
+    # RLS exception as /open-profiles above) — reusing candidates already
+    # in the system for a different job, not just this tenant's own.
+    return (
+        db.query(Candidate)
+        .filter(
+            Candidate.deleted_at.is_(None),
+            (Candidate.tenant_id == tenant_id) | (Candidate.open_to_other_roles.is_(True)),
+        )
+        .all()
+    )
+
+
+def _current_skill_entries_by_candidate(db: Session, candidate_ids: list[uuid.UUID]) -> dict[uuid.UUID, list[dict]]:
+    if not candidate_ids:
+        return {}
+    docs = (
+        db.query(CandidateDocument)
+        .filter(CandidateDocument.candidate_id.in_(candidate_ids), CandidateDocument.is_current.is_(True))
+        .all()
+    )
+    # technical_skills is {category: [{name, years_of_experience, last_used}]}
+    # from CV parsing (app/services/cv_parser.py, llm_cv_parser.py) — flatten
+    # across categories since search matches on skill name, not category.
+    by_candidate: dict[uuid.UUID, list[dict]] = {}
+    for doc in docs:
+        skills_by_category = (doc.parsed_fields or {}).get("technical_skills") or {}
+        flat: list[dict] = []
+        for entries in skills_by_category.values():
+            if isinstance(entries, list):
+                flat.extend(e for e in entries if isinstance(e, dict) and e.get("name"))
+        by_candidate[doc.candidate_id] = flat
+    return by_candidate
+
+
+def _skill_filter_match(entries: list[dict], filt: SkillFilterIn) -> dict | None:
+    target = filt.name.strip().lower()
+    for entry in entries:
+        if str(entry.get("name", "")).strip().lower() != target:
+            continue
+        conditions: list[bool] = []
+        if filt.min_years is not None:
+            try:
+                conditions.append(int(str(entry.get("years_of_experience", "")).strip()) >= filt.min_years)
+            except (TypeError, ValueError):
+                conditions.append(False)
+        if filt.used_since_year is not None:
+            try:
+                conditions.append(int(str(entry.get("last_used", "")).strip()) >= filt.used_since_year)
+            except (TypeError, ValueError):
+                conditions.append(False)
+        if not conditions:
+            return entry  # skill named, no year/recency condition to satisfy
+        ok = all(conditions) if filt.condition_match == "all" else any(conditions)
+        if ok:
+            return entry
+    return None
+
+
+@router.get("/skills", response_model=list[str])
+def list_known_skills(
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> list[str]:
+    # Powers the skill autocomplete on Find Candidates — same pool as
+    # /candidates/search below. Registered above /{candidate_id} for the
+    # same reason as /open-profiles (see its comment).
+    candidates = _findable_candidates(db, uuid.UUID(current_user.tenant_id))
+    skills_by_candidate = _current_skill_entries_by_candidate(db, [c.id for c in candidates])
+    names: set[str] = set()
+    for entries in skills_by_candidate.values():
+        for entry in entries:
+            name = str(entry.get("name", "")).strip()
+            if name:
+                names.add(name)
+    return sorted(names, key=str.lower)
+
+
+@router.post("/search", response_model=list[CandidateSearchResult])
+def search_candidates(
+    payload: CandidateSearchRequest,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> list[CandidateSearchResult]:
+    if not payload.skills:
+        return []
+
+    tenant_id = uuid.UUID(current_user.tenant_id)
+    candidates = _findable_candidates(db, tenant_id)
+    skills_by_candidate = _current_skill_entries_by_candidate(db, [c.id for c in candidates])
+
+    results: list[CandidateSearchResult] = []
+    for candidate in candidates:
+        entries = skills_by_candidate.get(candidate.id, [])
+        if not entries:
+            continue
+        matched = [m for f in payload.skills if (m := _skill_filter_match(entries, f)) is not None]
+        satisfied = len(matched) == len(payload.skills) if payload.skill_match == "all" else len(matched) > 0
+        if not satisfied:
+            continue
+        results.append(
+            CandidateSearchResult(
+                id=candidate.id,
+                full_name=candidate.full_name,
+                current_position=candidate.current_position,
+                total_years_experience=candidate.total_years_experience,
+                location=candidate.location,
+                scope="org" if candidate.tenant_id == tenant_id else "public",
+                matched_skills=[
+                    MatchedSkillOut(
+                        name=str(m.get("name", "")),
+                        years_of_experience=m.get("years_of_experience"),
+                        last_used=m.get("last_used"),
+                    )
+                    for m in matched
+                ],
+            )
+        )
+    return results
+
+
 @router.get("/{candidate_id}", response_model=CandidateDetailOut)
 def get_candidate(
     candidate_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
 ) -> CandidateDetailOut:
+    # Same-tenant OR open-to-other-roles — Candidate Quick View is opened
+    # from Open Profiles too, which lists candidates platform-wide (see
+    # docs/10). Mirrors attach_from_open_profile's filter and the RLS
+    # exception on `candidates` itself (migration 0001); CV/notes reads
+    # below rely on the matching RLS exception added in migration 0031.
     candidate = (
         db.query(Candidate)
-        .filter(Candidate.id == candidate_id, Candidate.tenant_id == current_user.tenant_id, Candidate.deleted_at.is_(None))
+        .filter(
+            Candidate.id == candidate_id,
+            Candidate.deleted_at.is_(None),
+            or_(Candidate.tenant_id == current_user.tenant_id, Candidate.open_to_other_roles.is_(True)),
+        )
         .first()
     )
     if candidate is None:
@@ -110,6 +247,7 @@ def get_candidate(
         )
     detail.placements = [
         PlacementSummary(
+            id=placement.id,
             job_id=job.id,
             job_title=job.title,
             stage_name=stage.name,
@@ -140,6 +278,22 @@ def update_candidate(
     updates = payload.model_dump(exclude_unset=True)
     if "full_name" in updates and not updates["full_name"]:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="full_name cannot be blank")
+    # Once a candidate has opted in to being visible platform-wide, that's
+    # their consent to revoke, not a recruiter's — a recruiter (even the
+    # one who owns this record) flipping it back would silently pull the
+    # candidate out of every other org's Open Profiles/Find Candidates
+    # results without the candidate knowing. Only a superadmin can revert
+    # it (e.g. handling a candidate's own request to opt back out).
+    if (
+        "open_to_other_roles" in updates
+        and updates["open_to_other_roles"] is False
+        and candidate.open_to_other_roles
+        and current_user.role != "superadmin"
+    ):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            detail="This candidate opted in to being visible to all recruiters — only a superadmin can revoke it.",
+        )
     for field, value in updates.items():
         setattr(candidate, field, value)
 
@@ -193,9 +347,14 @@ def download_candidate_cv(
     # Two-segment path, so this can't collide with GET /{candidate_id}
     # regardless of route registration order — see docs/02's route-
     # ordering gotcha, which only applies to same-depth paths.
+    # Same-tenant OR open-to-other-roles — see get_candidate's comment above.
     candidate = (
         db.query(Candidate)
-        .filter(Candidate.id == candidate_id, Candidate.tenant_id == current_user.tenant_id, Candidate.deleted_at.is_(None))
+        .filter(
+            Candidate.id == candidate_id,
+            Candidate.deleted_at.is_(None),
+            or_(Candidate.tenant_id == current_user.tenant_id, Candidate.open_to_other_roles.is_(True)),
+        )
         .first()
     )
     if candidate is None:
@@ -304,7 +463,11 @@ async def cv_parse_preview(
             )
             existing = (
                 db.query(Candidate)
-                .filter(Candidate.tenant_id == current_user.tenant_id, Candidate.dedup_fingerprint == fingerprint)
+                .filter(
+                    Candidate.tenant_id == current_user.tenant_id,
+                    Candidate.dedup_fingerprint == fingerprint,
+                    Candidate.deleted_at.is_(None),
+                )
                 .first()
             )
             if existing:
@@ -378,6 +541,7 @@ def cv_commit(
             source="cv_upload",
             current_position=item.current_position,
             total_years_experience=item.total_years_experience,
+            location=item.location,
             dedup_fingerprint=fingerprint,
         )
         db.add(candidate)
