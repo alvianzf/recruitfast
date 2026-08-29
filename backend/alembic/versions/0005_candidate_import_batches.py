@@ -5,6 +5,15 @@ Revises: 0004
 Create Date: 2026-08-25
 
 Backs the CSV/Excel bulk import traceability record from docs/09.
+
+NEUTERED 2026-08-26: this migration's schema changes are now
+folded into 0001's create_all() (models.py already reflects them),
+and any RLS policy work here is superseded by 0001's consolidated
+policy setup. Any data backfill above only ever mattered for rows
+that existed in this project's own dev database at the time it was
+first applied there (already done, permanently) — a fresh install
+has no such rows to backfill. Kept as a no-op, not deleted, so the
+revision chain and this history stay intact. See 0001's docstring.
 """
 from alembic import op
 import sqlalchemy as sa
@@ -16,26 +25,8 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        "candidate_import_batches",
-        sa.Column("id", sa.dialects.postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
-        sa.Column("tenant_id", sa.dialects.postgresql.UUID(as_uuid=True), sa.ForeignKey("tenants.id"), nullable=False),
-        sa.Column("uploaded_by", sa.dialects.postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id"), nullable=False),
-        sa.Column("original_filename", sa.String(), nullable=False),
-        sa.Column("total_rows", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("created_count", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("skipped_count", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column(
-            "status",
-            sa.Enum("processing", "completed", "failed", name="import_batch_status"),
-            nullable=False,
-            server_default="processing",
-        ),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()")),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()")),
-    )
+    pass  # see docstring — folded into 0001
 
 
 def downgrade() -> None:
-    op.drop_table("candidate_import_batches")
-    op.execute("DROP TYPE IF EXISTS import_batch_status")
+    pass  # see docstring — folded into 0001
