@@ -1,8 +1,8 @@
 import enum
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, Date, DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -37,6 +37,13 @@ class PipelinePlacement(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     status_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     moved_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    # Captured when the recruiter is prompted after this placement fills
+    # a job (headcount auto-close or manual "mark Won") — the actual
+    # negotiated outcome, distinct from the job's advertised salary
+    # range. Drives the dashboard's placement-value figure. See docs/05.
+    starting_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    offer_rate: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    offer_rate_currency: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class StageHistory(UUIDPrimaryKeyMixin, Base):
