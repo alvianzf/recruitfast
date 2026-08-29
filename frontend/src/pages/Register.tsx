@@ -7,6 +7,8 @@ import {
   Alert,
   Box,
   Button,
+  IconButton,
+  InputAdornment,
   MenuItem,
   Paper,
   Stack,
@@ -14,7 +16,9 @@ import {
   Typography,
   Link as MuiLink,
 } from "@mui/material";
-import { Link as RouterLink, Navigate } from "react-router-dom";
+import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
+import VisibilityOffOutlinedIcon from "@mui/icons-material/VisibilityOffOutlined";
+import { Link as RouterLink, Navigate, useNavigate } from "react-router-dom";
 
 import { api } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
@@ -34,12 +38,13 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 // Freelance recruiter self-registration — public entry point into the
-// platform-owned Freelance Org, gated by Superadmin approval afterward.
+// platform-owned Freelance Org. Access is immediate, no approval step.
 // See docs/01-roles-permissions.md#freelance-recruiter-registration-flow.
 export default function Register() {
-  const { user } = useAuth();
-  const [submitted, setSubmitted] = useState(false);
+  const { user, login } = useAuth();
+  const navigate = useNavigate();
   const [serverError, setServerError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   const {
     register,
@@ -58,7 +63,8 @@ export default function Register() {
         ...values,
         years_experience: values.years_experience ? Number(values.years_experience) : undefined,
       });
-      setSubmitted(true);
+      await login(values.email, values.password);
+      navigate("/app/dashboard", { replace: true });
     } catch (err) {
       if (isAxiosError(err) && err.response?.data?.detail) {
         setServerError(err.response.data.detail);
@@ -80,29 +86,15 @@ export default function Register() {
       }}
     >
       <Paper sx={{ p: 5, width: 480, maxWidth: "100%" }} elevation={0}>
-        {submitted ? (
-          <Stack spacing={2} sx={{ alignItems: "center", textAlign: "center" }}>
+        <Stack spacing={3} component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
+          <Stack spacing={0.5} sx={{ alignItems: "center" }}>
             <Logo />
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>
-              Application submitted
+            <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center" }}>
+              Register as a freelance recruiter and get instant access, no approval wait.
             </Typography>
-            <Typography color="text.secondary">
-              We'll review your application and email you once it's approved. You can't sign in until then.
-            </Typography>
-            <MuiLink component={RouterLink} to="/login" underline="hover">
-              Back to sign in
-            </MuiLink>
           </Stack>
-        ) : (
-          <Stack spacing={3} component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
-            <Stack spacing={0.5} sx={{ alignItems: "center" }}>
-              <Logo />
-              <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center" }}>
-                Register as a freelance recruiter — applications are reviewed before you get access.
-              </Typography>
-            </Stack>
 
-            {serverError && <Alert severity="error">{serverError}</Alert>}
+          {serverError && <Alert severity="error">{serverError}</Alert>}
 
             <TextField
               label="Full name"
@@ -121,11 +113,28 @@ export default function Register() {
             />
             <TextField
               label="Password"
-              type="password"
+              type={showPassword ? "text" : "password"}
+              autoComplete="new-password"
               fullWidth
               {...register("password")}
               error={!!errors.password}
               helperText={errors.password?.message}
+              slotProps={{
+                input: {
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        size="small"
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                        onClick={() => setShowPassword((v) => !v)}
+                        edge="end"
+                      >
+                        {showPassword ? <VisibilityOffOutlinedIcon fontSize="small" /> : <VisibilityOutlinedIcon fontSize="small" />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                },
+              }}
             />
             <TextField label="Phone" fullWidth {...register("phone")} />
             <TextField label="LinkedIn / portfolio URL" fullWidth {...register("linkedin_url")} />
@@ -143,7 +152,7 @@ export default function Register() {
             </TextField>
             <TextField label="Prior placements (optional)" multiline minRows={3} fullWidth {...register("notes")} />
             <Button variant="contained" size="large" type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Submitting…" : "Submit application"}
+              {isSubmitting ? "Creating account…" : "Create account"}
             </Button>
             <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center" }}>
               Already have an account?{" "}
@@ -152,7 +161,6 @@ export default function Register() {
               </MuiLink>
             </Typography>
           </Stack>
-        )}
       </Paper>
     </Box>
   );
