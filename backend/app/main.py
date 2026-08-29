@@ -2,6 +2,7 @@ import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -12,6 +13,7 @@ from app.api.routers import (
     blacklist,
     bulk_import,
     candidates,
+    clients,
     freelance,
     health,
     jobs,
@@ -22,11 +24,14 @@ from app.api.routers import (
     public_board,
     screening,
     teams,
+    uploads,
+    users,
 )
 from app.core.config import settings
 from app.core.limiter import limiter
+from app.services.storage import PUBLIC_ROOT
 
-app = FastAPI(title="RecruitFast API")
+app = FastAPI(title="FastRecruit API", version="0.5.5")
 
 # JWT_SECRET's Pydantic default is a placeholder, never meant to be used
 # for real — if it's still set, every access/refresh token this process
@@ -50,13 +55,15 @@ app.add_middleware(SlowAPIMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
-    # Wildcard for now to stop localhost-vs-127.0.0.1 origin mismatches
-    # from blocking local dev — tighten to settings.cors_origins (or a
-    # real production allowlist) before this goes anywhere near the
-    # internet. allow_credentials must be False to pair with "*" (CORS
-    # spec forbids the combination); harmless here since auth is a
-    # Bearer token in the Authorization header, not a cookie.
-    allow_origins=["*"],
+    # settings.cors_origins' local-dev default already lists both
+    # localhost and 127.0.0.1 (the two origins that used to motivate a
+    # wildcard here), and production's .env overrides it to the real
+    # frontend origin — see docs/11-security-review.md, this closes a
+    # previously-documented "tighten before this goes near the internet"
+    # gap now that the app is actually deployed. allow_credentials stays
+    # False either way; auth is a Bearer token in the Authorization
+    # header, not a cookie.
+    allow_origins=settings.cors_origins,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -74,6 +81,15 @@ app.include_router(notes.router)
 app.include_router(metrics.router)
 app.include_router(bulk_import.router)
 app.include_router(public_board.router)
+app.include_router(public_board.root_router)
 app.include_router(screening.router)
 app.include_router(blacklist.router)
 app.include_router(teams.router)
+app.include_router(uploads.router)
+app.include_router(users.router)
+app.include_router(clients.router)
+
+# Uploaded org logos and user avatars — plain static serving since these
+# render unauthenticated on the public job board. Not for candidate CVs,
+# which stay behind the authenticated /candidates/{id}/cv endpoint.
+app.mount("/media", StaticFiles(directory=str(PUBLIC_ROOT)), name="media")
