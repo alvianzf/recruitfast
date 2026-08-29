@@ -17,6 +17,9 @@ export interface Placement {
   current_stage_id: string;
   status: "active" | "rejected" | "withdrawn";
   status_reason: string | null;
+  starting_date: string | null;
+  offer_rate: number | null;
+  offer_rate_currency: string | null;
   candidate: { id: string; full_name: string; current_position: string | null };
 }
 
@@ -45,11 +48,60 @@ export function useAttachCandidate(jobId: string) {
   });
 }
 
+// Same-tenant attach, but for callers (like Find Candidates) that pick
+// the target job at click time rather than owning a fixed jobId — see
+// useAttachCandidate above for the jobId-scoped version used elsewhere.
+export function useAttachCandidateToJob() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ jobId, candidateId }: { jobId: string; candidateId: string }) =>
+      (await api.post<Placement>(`/jobs/${jobId}/placements`, { candidate_id: candidateId })).data,
+    onSuccess: (_data, { jobId }) => queryClient.invalidateQueries({ queryKey: ["placements", jobId] }),
+  });
+}
+
+// Generic, not jobId-scoped — used from CandidateDetail.tsx, which
+// doesn't have a fixed job in scope (a candidate can have placements on
+// several jobs at once). Invalidates the candidate detail query since
+// that's the query whose data (candidate.placements) actually changes.
+export function useDeletePlacement() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (placementId: string) => api.delete(`/placements/${placementId}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["candidate"] }),
+  });
+}
+
 export function useMovePlacement(jobId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ placementId, toStageId }: { placementId: string; toStageId: string }) =>
       (await api.patch<Placement>(`/placements/${placementId}/move`, { to_stage_id: toStageId })).data,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["placements", jobId] }),
+  });
+}
+
+export function useUpdatePlacementOfferDetails(jobId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      placementId,
+      starting_date,
+      offer_rate,
+      offer_rate_currency,
+    }: {
+      placementId: string;
+      starting_date?: string | null;
+      offer_rate?: number | null;
+      offer_rate_currency?: string | null;
+    }) =>
+      (
+        await api.patch<Placement>(`/placements/${placementId}/offer-details`, {
+          starting_date,
+          offer_rate,
+          offer_rate_currency,
+        })
+      ).data,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["placements", jobId] }),
   });
 }
@@ -63,7 +115,7 @@ export function useUpdatePlacementStatus(jobId: string) {
       reason,
     }: {
       placementId: string;
-      status: "rejected" | "withdrawn";
+      status: "rejected" | "withdrawn" | "active";
       reason?: string;
     }) => (await api.patch<Placement>(`/placements/${placementId}/status`, { status, reason })).data,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["placements", jobId] }),
