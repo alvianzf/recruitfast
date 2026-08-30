@@ -1,4 +1,17 @@
+<p align="center">
+  <img src="frontend/public/icon-mark-512.png" alt="FastRecruit logo" width="96" height="96" />
+</p>
+
 # FastRecruit
+
+[![Version](https://img.shields.io/badge/version-0.5.5-blue)](frontend/package.json)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](frontend/package.json)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](frontend/package.json)
+[![MUI](https://img.shields.io/badge/MUI-9-007FFF?logo=mui&logoColor=white)](frontend/package.json)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)](backend/requirements.txt)
+[![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-2-D71F00)](backend/requirements.txt)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-RLS-4169E1?logo=postgresql&logoColor=white)](backend/alembic/versions)
+[![Redis](https://img.shields.io/badge/Redis-5-DC382D?logo=redis&logoColor=white)](backend/requirements.txt)
 
 Multi-tenant recruitment SaaS for freelance recruiters and recruiting
 agencies, with pipeline-driven job/candidate management and a confidentiality
